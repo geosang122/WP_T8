@@ -2,8 +2,6 @@
 /* ============================================================
    nemo-game.js — 구현 B 담당 파일
    역할: Shark, A*(AStarGrid/Dory), Game 메인 컨트롤러, 부트스트랩
-   추가: 게임 상태(READY/PLAYING), 화면 흔들림, 방향키 조작,
-         점수 팝업, 개선된 패들 물리
 ============================================================ */
 
 const canvas     = document.getElementById('gameCanvas');
@@ -37,43 +35,106 @@ const LS_KEY = 'nemo_breakout_v1';
 function loadSave()      { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } }
 function writeSave(data) { localStorage.setItem(LS_KEY, JSON.stringify({ ...loadSave(), ...data })); }
 
-const STAGE_CFG = {
-    1: { speed: 4.2, timerSec: null, rows: 6,  cols: 13, blackout: 0, shark: false, vortex: false, dorisAI: true  },
-    2: { speed: 5.8, timerSec: 90,   rows: 8,  cols: 13, blackout: 2, shark: true,  vortex: false, dorisAI: false },
-    3: { speed: 7.5, timerSec: 60,   rows: 10, cols: 13, blackout: 1, shark: false, vortex: true,  dorisAI: false },
-};
 
 /* ============================================================
-   Shark — Stage 2 횡단 장애물
+   📋 STAGE CONFIG — 기획/스토리 담당자 수정 영역
+   ============================================================
+   각 필드 설명 (숫자·불린만 수정, 키 이름 변경 금지):
+     speed      : 공 초기 속도 (권장 범위 3.0 ~ 9.0 — 높을수록 어려움)
+     timerSec   : 제한 시간 초 (null = 무제한)
+     rows       : 블록 행 수
+     cols       : 블록 열 수
+     blackout   : 블록 시야 제한 행 수 (0 = 없음, 1~3 권장)
+     shark      : 상어 등장 여부
+     vortex     : 소용돌이 블록 포함 여부
+     dorisAI    : Stage 1 도리 경로 가이드 표시 여부
+     itemChance : 아이템 드롭 확률 (0.0 ~ 1.0)
+     sharkSpeed : 상어 이동 속도 (shark: true 일 때만 유효)
+============================================================ */
+const STAGE_CFG = {
+    1: { speed: 5.5, timerSec: null, rows: 7,  cols: 17, blackout: 0, shark: false, vortex: false, dorisAI: true,  itemChance: 0.18, sharkSpeed: 2.8 },
+    2: { speed: 7.0, timerSec: 90,   rows: 9,  cols: 19, blackout: 2, shark: true,  vortex: false, dorisAI: false, itemChance: 0.22, sharkSpeed: 3.5 },
+    3: { speed: 8.5, timerSec: 60,   rows: 11, cols: 21, blackout: 1, shark: false, vortex: true,  dorisAI: false, itemChance: 0.28, sharkSpeed: 4.0 },
+};
+
+/* ── 아이템 풀 (기획 담당: 드롭 아이템 종류 변경 가능) ──────── */
+const ITEM_POOL = ['extraBall', 'shield', 'paddleWide', 'multiball', 'speedUp', 'slowBall', 'extraLife'];
+
+
+/* ============================================================
+   🚨 CORE OBJECTS — 구현 개발자 외 수정 금지 🚨
+   Shark · AStarGrid · Dory · Game
+============================================================ */
+
+/* ============================================================
+   Shark — Stage 2 횡단 장애물 (쿨다운 기믹)
+
+   동작 원리:
+   · 평소에는 화면 밖에서 대기 (active = false)
+   · _cooldown 이 0이 되면 화면을 한 번 가로질러 사라짐
+   · 공과 충돌 시 dx 반전 + 조작 반전, 단 _hitCooldown 으로
+     같은 횡단 중 중복 반전 방지
 ============================================================ */
 class Shark {
     constructor(cw, ch, speed = 2.8) {
-        this.CW = cw; this.CH = ch;
-        this.w  = 80; this.h  = 40;
+        this.CW  = cw; this.CH = ch;
+        this.w   = 80; this.h  = 40;
+
+        this.active        = false;
+        this._cooldown     = 180; // 초기 지연 (약 3초)
+        this._cooldownMax  = 420; // 횡단 간격 기본값 (약 7초)
+        this._hitCooldown  = 0;   // 같은 횡단 내 중복 충돌 방지
+        this._speed        = speed;
+
+        // 위치 초기화 (activate 시 재지정)
         this.x  = -this.w;
-        this.y  = ch * 0.3 + (Math.random() - 0.5) * 60;
+        this.y  = ch * 0.4;
         this.dx = speed;
     }
 
     update() {
+        if (this._hitCooldown > 0) this._hitCooldown--;
+
+        if (!this.active) {
+            if (--this._cooldown <= 0) {
+                this.active        = true;
+                this._cooldown     = this._cooldownMax + Math.floor(Math.random() * 120);
+                this._hitCooldown  = 0;
+
+                const goRight = Math.random() > 0.5;
+                this.dx = goRight ?  this._speed : -this._speed;
+                this.x  = goRight ? -this.w     :  this.CW + this.w;
+                this.y  = this.CH * 0.18 + Math.random() * this.CH * 0.50;
+            }
+            return;
+        }
+
         this.x += this.dx;
-        if (this.dx > 0 && this.x > this.CW + this.w) {
-            this.x = -this.w;
-            this.y = this.CH * 0.2 + Math.random() * this.CH * 0.35;
-        }
-        if (this.dx < 0 && this.x < -this.w) {
-            this.x = this.CW + this.w;
-            this.y = this.CH * 0.2 + Math.random() * this.CH * 0.35;
-        }
+
+        if (this.dx > 0 && this.x > this.CW + this.w) this.active = false;
+        if (this.dx < 0 && this.x < -this.w)          this.active = false;
     }
 
+    /** 충돌 면 반환 ('x' | 'y') — 비활성·히트쿨다운 중이면 null */
     hitsBall(ball) {
-        const dx = Math.abs(ball.x - (this.x + this.w / 2));
-        const dy = Math.abs(ball.y - (this.y + this.h / 2));
-        return dx < this.w / 2 + ball.r && dy < this.h / 2 + ball.r;
+        if (!this.active || this._hitCooldown > 0) return null;
+        const cx  = this.x + this.w / 2;
+        const cy  = this.y + this.h / 2;
+        const adx = Math.abs(ball.x - cx);
+        const ady = Math.abs(ball.y - cy);
+        if (adx >= this.w / 2 + ball.r || ady >= this.h / 2 + ball.r) return null;
+        const ovX = this.w / 2 + ball.r - adx;
+        const ovY = this.h / 2 + ball.r - ady;
+        return ovX < ovY ? 'x' : 'y';
+    }
+
+    /** 충돌 처리 후 호출 — 같은 횡단 중 중복 반전 방지 쿨타임 설정 */
+    registerHit() {
+        this._hitCooldown = 45; // 약 0.75초
     }
 
     draw(ctx) {
+        if (!this.active) return;
         const { x, y, w, h } = this;
         const flip = this.dx < 0;
         ctx.save();
@@ -101,7 +162,7 @@ class Shark {
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(w / 2 - 10, -5, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(w / 2 - 9, -5, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(w / 2 -  9, -5, 2.5, 0, Math.PI * 2); ctx.fill();
 
         ctx.fillStyle = '#fff';
         for (let i = 0; i < 4; i++) {
@@ -145,8 +206,8 @@ class AStarGrid {
     }
 
     findPath(start, end) {
-        const key = (c, r) => c * 1000 + r;
-        const h   = (c, r) => Math.abs(c - end.col) + Math.abs(r - end.row);
+        const key  = (c, r) => c * 1000 + r;
+        const h    = (c, r) => Math.abs(c - end.col) + Math.abs(r - end.row);
         const open   = [{ col: start.col, row: start.row, g: 0, f: h(start.col, start.row), prev: null }];
         const closed = new Set();
         const gMap   = new Map([[key(start.col, start.row), 0]]);
@@ -182,22 +243,17 @@ class AStarGrid {
         return [];
     }
 
-    toGrid(px, py) {
-        return { col: Math.floor(px / this.cell), row: Math.floor(py / this.cell) };
-    }
-
-    toPixel(col, row) {
-        return { x: col * this.cell + this.cell / 2, y: row * this.cell + this.cell / 2 };
-    }
+    toGrid(px, py) { return { col: Math.floor(px / this.cell), row: Math.floor(py / this.cell) }; }
+    toPixel(col, row) { return { x: col * this.cell + this.cell / 2, y: row * this.cell + this.cell / 2 }; }
 }
 
 /* ============================================================
-   Dory — Stage 1 A* AI
+   Dory — Stage 1 A* AI 가이드 (패들 위치까지 경로 탐색)
 ============================================================ */
 class Dory {
     constructor(cw, ch) {
         this.x       = cw / 2;
-        this.y       = ch - 60;
+        this.y       = ch * 0.45; // 블록 영역 아래, 패들 위 빈 공간에서 시작
         this.r       = 18;
         this.spd     = 1.6;
         this.grid    = new AStarGrid(cw, ch);
@@ -211,7 +267,7 @@ class Dory {
     recalcPath(blocks, paddle) {
         this.grid.markBlocks(blocks);
         const start = this.grid.toGrid(this.x, this.y);
-        const end   = this.grid.toGrid(paddle.cx, paddle.y + 20);
+        const end   = this.grid.toGrid(paddle.cx, paddle.y + paddle.h + 20); // 패들 바로 아래를 목표로
         this.path   = this.grid.findPath(start, end);
         this.pathPx = this.path.map(p => this.grid.toPixel(p.col, p.row));
         this.pathIdx = 0;
@@ -262,10 +318,10 @@ class Dory {
     draw(ctx) {
         const bobY = Math.sin(this._wob) * 3;
         ctx.save();
-        ctx.shadowColor = '#00b4d8';
-        ctx.shadowBlur  = 14;
-        ctx.font        = `${this.r * 2}px serif`;
-        ctx.textAlign   = 'center';
+        ctx.shadowColor  = '#00b4d8';
+        ctx.shadowBlur   = 14;
+        ctx.font         = `${this.r * 2}px serif`;
+        ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('🐠', this.x, this.y + bobY);
         ctx.restore();
@@ -274,10 +330,11 @@ class Dory {
 
 /* ============================================================
    Game — 메인 게임 컨트롤러
-   · 게임 상태: READY (공 대기) / PLAYING (게임 중)
-   · 화면 흔들림(Screen Shake) — 벽돌 파괴 시 6프레임
-   · 방향키(←→) 패들 조작 지원
+   · 상태: READY (공 대기) / PLAYING (게임 진행)
+   · 화면 흔들림(Screen Shake) + 히트스탑(Hit Stop)
+   · 방향키(←→) 패들 조작
    · 점수 팝업(ScorePopup) 렌더링
+   · Multiball 아이템
 ============================================================ */
 class Game {
     constructor() {
@@ -305,8 +362,7 @@ class Game {
         this._mouseX    = CW / 2;
         this._revTimer  = 0;
 
-        // 신규: 게임 상태 / 화면 흔들림 / 점수 팝업 / 방향키
-        this._phase          = 'READY';   // 'READY' | 'PLAYING'
+        this._phase          = 'READY';
         this._shakeFrames    = 0;
         this._shakeIntensity = 6;
         this._scorePopups    = [];
@@ -323,7 +379,7 @@ class Game {
         showScreen('lobby');
     }
 
-    // ── UI 이벤트 바인딩 ──────────────────────────────────────
+    // ── UI 이벤트 바인딩 ─────────────────────────────────────
     _initUI() {
         document.getElementById('btnStart').addEventListener('click', () => {
             showScreen('stages'); this._applyUnlocked();
@@ -378,44 +434,28 @@ class Game {
             });
         });
 
-        // 마우스 이동
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
             this._mouseX = (e.clientX - rect.left) * (CW / rect.width);
         });
 
-        // 캔버스 클릭 → 공 발사
         canvas.addEventListener('click', () => {
             if (this._running && !this._paused) this._launchBalls();
         });
 
-        // 키보드 입력
         document.addEventListener('keydown', e => {
             const gameActive = screenEls.game.classList.contains('active');
 
-            // 방향키 ← → : 패들 이동
             if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-                if (gameActive) {
-                    e.preventDefault();
-                    this._keysDown[e.code] = true;
-                }
+                if (gameActive) { e.preventDefault(); this._keysDown[e.code] = true; }
                 return;
             }
-
-            // Space : 공 발사 (READY → PLAYING)
             if (e.code === 'Space' && gameActive) {
                 e.preventDefault();
                 if (this._running && !this._paused) this._launchBalls();
                 return;
             }
-
-            // P : 일시정지
-            if ((e.key === 'p' || e.key === 'P') && gameActive) {
-                this._togglePause();
-                return;
-            }
-
-            // Escape : 모달 닫기
+            if ((e.key === 'p' || e.key === 'P') && gameActive) { this._togglePause(); return; }
             if (e.key === 'Escape') {
                 if (!modalSettings.classList.contains('hidden')) { closeModal(modalSettings); return; }
                 if (!modalCredits.classList.contains('hidden'))  { closeModal(modalCredits);  return; }
@@ -423,9 +463,8 @@ class Game {
         });
 
         document.addEventListener('keyup', e => {
-            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight')
                 this._keysDown[e.code] = false;
-            }
         });
     }
 
@@ -440,7 +479,7 @@ class Game {
         });
     }
 
-    // ── 스테이지 실행 흐름 ────────────────────────────────────
+    // ── 스테이지 실행 흐름 ───────────────────────────────────
     _launchStage(n) {
         this._stage = n;
         const names = { 1:'조력자 구출', 2:'상어의 위협', 3:'니모 구하기' };
@@ -464,23 +503,31 @@ class Game {
         this._clearing = false;
         this._revTimer = 0;
         this._blocksDestroyed = 0;
-        this._particles  = [];
-        this._items      = [];
+        this._particles   = [];
+        this._items       = [];
         this._scorePopups = [];
         this._shakeFrames = 0;
-        this._phase      = 'READY';  // 공 대기 상태로 시작
+        this._phase       = 'READY';
 
         hudStageEl.textContent = String(n).padStart(2, '0');
         this._syncHUD();
 
-        this._paddle = new Paddle(CW);
+        this._paddle = new Paddle(CW, CH); // CH 전달 — 패들이 하단에 배치됨
         this._blocks = this._buildBlocks(cfg);
         this._balls  = [this._newBall()];
 
-        this._shark = cfg.shark   ? new Shark(CW, CH, 2.8 * spdMul) : null;
-        this._dory  = cfg.dorisAI ? new Dory(CW, CH)  : null;
-        if (this._dory)  this._dory.recalcPath(this._blocks, this._paddle);
-        if (this._shark) setTimeout(() => this.audio.playSharkAlert(), 600);
+        this._shark = cfg.shark ? new Shark(CW, CH, cfg.sharkSpeed * spdMul) : null;
+        this._dory  = cfg.dorisAI ? new Dory(CW, CH) : null;
+        if (this._dory) {
+            // 블록 그리드 중앙에 갇힌 상태로 시작 — 블록이 깨지면 A*로 탈출
+            if (this._blocks.length > 0) {
+                const mid = this._blocks[Math.floor(this._blocks.length / 2)];
+                this._dory.x = mid.x + mid.w / 2;
+                this._dory.y = mid.y + mid.h / 2;
+            }
+            this._dory.recalcPath(this._blocks, this._paddle);
+        }
+        if (this._shark) setTimeout(() => this.audio.playSharkAlert(), 800);
 
         document.getElementById('canvasPlaceholder').style.display = 'none';
         document.getElementById('btnPause').textContent = '⏸';
@@ -492,26 +539,27 @@ class Game {
 
     _buildBlocks(cfg) {
         const sideMargin   = 32;
-        const bottomMargin = 32;
-        const gap = 5, bh = 22;
+        const bottomMargin = 24; // 하단 여백 — 블록이 화면 하단에 배치됨
+        const gap = 5, bh = 18;
         const bw     = (CW - sideMargin * 2 - gap * (cfg.cols - 1)) / cfg.cols;
-        const totalH = cfg.rows * (bh + gap);
-        const startY = CH - bottomMargin - totalH;
-        const itemPool = ['extraBall', 'shield', 'paddleWide'];
-        const blocks   = [];
+        const totalH = cfg.rows * bh + (cfg.rows - 1) * gap;
+        const startY = CH - bottomMargin - totalH; // 하단부터 쌓기
+        const blocks = [];
 
         for (let r = 0; r < cfg.rows; r++) {
             for (let c = 0; c < cfg.cols; c++) {
                 const x = sideMargin + c * (bw + gap);
                 const y = startY + r * (bh + gap);
 
+                // 하드 블록은 뒤쪽(하단) 2행에만 소수 배치 — 앞에 두면 게임이 루즈해짐
                 let type = BT.normal;
-                if (r === 0)                               type = BT.hard;
-                else if (cfg.vortex && (r + c) % 5 === 0) type = BT.vortex;
+                const isBackRow = r >= cfg.rows - 2;
+                if (isBackRow && Math.random() < 0.22)         type = BT.hard;
+                else if (cfg.vortex && (r + c) % 6 === 0)     type = BT.vortex;
 
                 const b = new Block(x, y, bw, bh, type, r);
-                if (Math.random() < 0.25)
-                    b._itemType = itemPool[Math.floor(Math.random() * itemPool.length)];
+                if (Math.random() < (cfg.itemChance ?? 0.20))
+                    b._itemType = ITEM_POOL[Math.floor(Math.random() * ITEM_POOL.length)];
                 blocks.push(b);
             }
         }
@@ -521,7 +569,7 @@ class Game {
     _newBall() {
         const b = new Ball(
             this._paddle.cx,
-            this._paddle.y + this._paddle.h + 10,
+            this._paddle.y + this._paddle.h + 12,
             this._ballColor()
         );
         b.stuck = true; b.stuckDx = 0;
@@ -533,14 +581,13 @@ class Game {
         return sw ? getComputedStyle(sw).getPropertyValue('--sc').trim() : '#ff6b35';
     }
 
-    /** 공 발사 + PLAYING 상태 전환 */
     _launchBalls() {
         const hadStuck = this._balls.some(b => b.stuck);
         this._balls.forEach(b => { if (b.stuck) b.launch(this._baseSpeed); });
         if (hadStuck) this._phase = 'PLAYING';
     }
 
-    // ── 메인 루프 ─────────────────────────────────────────────
+    // ── 메인 루프 ────────────────────────────────────────────
     _loop(ts) {
         if (!this._running) return;
         const dt = this._lastTs ? Math.min(ts - this._lastTs, 50) : 16;
@@ -553,7 +600,7 @@ class Game {
     _update(dt) {
         const cfg = STAGE_CFG[this._stage];
 
-        // ── 타이머 ──
+        // ── 타이머 ─────────────────────────────────────────
         if (cfg.timerSec) {
             this._timerMs += dt;
             if (this._timerMs >= 1000) {
@@ -564,7 +611,7 @@ class Game {
             }
         }
 
-        // ── 방향키 → _mouseX 조정 후 패들 이동 ──
+        // ── 방향키 → 패들 이동 ──────────────────────────────
         const arrowSpd = 10 * this._spdMul;
         if (this._keysDown.ArrowLeft)  this._mouseX = Math.max(0,  this._mouseX - arrowSpd);
         if (this._keysDown.ArrowRight) this._mouseX = Math.min(CW, this._mouseX + arrowSpd);
@@ -577,22 +624,26 @@ class Game {
             this._paddle.reversed = this._revTimer > 0;
         }
 
-        // ── 상어 (Stage 2) ──
+        // ── 상어 (Stage 2 — 공 튕기기) ──────────────────────
         if (this._shark) {
             this._shark.update();
             for (const b of this._balls) {
-                if (!b.stuck && this._shark.hitsBall(b)) {
-                    b.dx *= -1;
-                    if (this._revTimer === 0) this.audio.playSharkAlert();
-                    this._revTimer = 150;
+                if (!b.stuck) {
+                    const side = this._shark.hitsBall(b);
+                    if (side) {
+                        if (side === 'x') b.dx *= -1;
+                        else              b.dy *= -1;
+                        this._shark.registerHit();
+                        this.audio.playPaddleHit();
+                    }
                 }
             }
         }
 
-        // ── 도리 A* (Stage 1) ──
+        // ── 도리 A* (Stage 1) ───────────────────────────────
         if (this._dory) this._dory.update(this._blocks, this._paddle);
 
-        // ── 공 물리 ──
+        // ── 공 물리 ─────────────────────────────────────────
         for (let i = this._balls.length - 1; i >= 0; i--) {
             const b   = this._balls[i];
             const res = b.update(this._paddle, CW, CH);
@@ -603,7 +654,7 @@ class Game {
             }
         }
 
-        // ── 블록 충돌 ──
+        // ── 블록 충돌 ───────────────────────────────────────
         for (const block of this._blocks) {
             if (!block.alive) continue;
             block.update();
@@ -612,38 +663,36 @@ class Game {
 
                 const hp = block.hit();
                 if (hp > 0) {
-                    // 단단한 블록: 타격음 (미파괴)
+                    // 하드 블록 피격 — 히트스탑 + 약한 화면 흔들림
                     this.audio.playHardHit();
+                    this._shakeFrames    = Math.max(this._shakeFrames, 4);
+                    this._shakeIntensity = 3;
+                    ball.slowTimer = Math.max(ball.slowTimer, 8); // 8프레임 히트스탑
                 } else {
                     // 블록 파괴
                     this.audio.playBlockBreak();
+                    this._shakeFrames    = 6;
+                    this._shakeIntensity = 6;
 
-                    // 화면 흔들림 트리거 (6프레임)
-                    this._shakeFrames = 6;
-
-                    // 점수 계산 (100 / 200 / 300)
                     const pts = block.type === BT.hard ? 300 : block.type === BT.vortex ? 200 : 100;
                     this._score += pts;
                     this._syncHUD(true);
                     this._saveHigh();
 
-                    // 점수 팝업
                     this._scorePopups.push(new ScorePopup(
                         block.x + block.w / 2,
                         block.y + block.h / 2,
                         pts
                     ));
 
-                    // 파티클 (기포 + 사각형 파편)
                     this._particles.push(...spawnParticles(
                         block.x + block.w / 2, block.y + block.h / 2, block.color
                     ));
 
-                    // 아이템 드롭
                     if (block._itemType)
                         this._items.push(new Item(block.x + block.w / 2, block.y + block.h / 2, block._itemType));
 
-                    // 점진적 속도 증가 — 8블록 파괴마다 5% 가속, 최대 기본속도의 1.35배
+                    // 점진적 속도 증가 — 8블록마다 5% 가속, 최대 기본속도의 1.35배
                     this._blocksDestroyed++;
                     if (this._blocksDestroyed % 8 === 0) {
                         const cap = this._baseSpeed * 1.35;
@@ -663,27 +712,27 @@ class Game {
             }
         }
 
-        // ── 아이템 ──
+        // ── 아이템 ─────────────────────────────────────────
         for (let i = this._items.length - 1; i >= 0; i--) {
             const it = this._items[i];
-            it.update(CW);
+            it.update(CW, CH); // CH 전달 — 하단 이탈 판정에 사용
             if (it.hits(this._paddle)) { this._applyItem(it.type); this._items.splice(i, 1); }
             else if (!it.alive)        { this._items.splice(i, 1); }
         }
 
-        // ── 파티클 ──
+        // ── 파티클 ─────────────────────────────────────────
         for (let i = this._particles.length - 1; i >= 0; i--) {
             this._particles[i].update();
             if (this._particles[i].dead) this._particles.splice(i, 1);
         }
 
-        // ── 점수 팝업 ──
+        // ── 점수 팝업 ───────────────────────────────────────
         for (let i = this._scorePopups.length - 1; i >= 0; i--) {
             this._scorePopups[i].update();
             if (this._scorePopups[i].dead) this._scorePopups.splice(i, 1);
         }
 
-        // ── 클리어 판정 ──
+        // ── 클리어 판정 ─────────────────────────────────────
         if (!this._clearing && this._blocks.every(b => !b.alive)) {
             this._clearing = true;
             this._stageClear();
@@ -691,7 +740,7 @@ class Game {
     }
 
     _collide(ball, block) {
-        const { x, y, r }           = ball;
+        const { x, y, r }                     = ball;
         const { x: bx, y: by, w: bw, h: bh } = block;
         const nearX = Math.max(bx, Math.min(x, bx + bw));
         const nearY = Math.max(by, Math.min(y, by + bh));
@@ -705,15 +754,63 @@ class Game {
 
     _applyItem(type) {
         this.audio.playItemGet();
+
         if (type === 'extraBall') {
             const nb = this._newBall();
             nb.stuckDx = (Math.random() - 0.5) * 30;
             this._balls.push(nb);
             setTimeout(() => nb.launch(this._baseSpeed), 300);
+
         } else if (type === 'shield') {
             this._paddle.applyShield(360);
-        } else {
+
+        } else if (type === 'paddleWide') {
             this._paddle.applyExpand(480);
+
+        } else if (type === 'multiball') {
+            // 현재 맵의 모든 공 각각에서 ±30° 방향으로 복사본 2개 생성
+            this.audio.playMultiball();
+            const toAdd = [];
+            for (const ball of this._balls) {
+                if (ball.stuck) continue;
+                const spd     = Math.hypot(ball.dx, ball.dy);
+                const baseAng = Math.atan2(ball.dy, ball.dx);
+                for (const offset of [-Math.PI / 6, Math.PI / 6]) {
+                    const nb = new Ball(ball.x, ball.y, this._ballColor());
+                    nb.stuck = false;
+                    nb.dx = Math.cos(baseAng + offset) * spd;
+                    nb.dy = Math.sin(baseAng + offset) * spd;
+                    // MIN_DY 보장 — 분열 공도 수평 루프 방지
+                    if (Math.abs(nb.dy) < Ball.MIN_DY)
+                        nb.dy = nb.dy >= 0 ? Ball.MIN_DY : -Ball.MIN_DY;
+                    toAdd.push(nb);
+                }
+            }
+            this._balls.push(...toAdd);
+
+        } else if (type === 'speedUp') {
+            // 공 속도 즉시 20% 증가 (상한: 기본속도 × 1.8)
+            const cap = this._baseSpeed * 1.8;
+            for (const b of this._balls) {
+                if (b.stuck) continue;
+                const spd = Math.hypot(b.dx, b.dy);
+                if (spd > 0) {
+                    const ns = Math.min(spd * 1.20, cap);
+                    b.dx = (b.dx / spd) * ns;
+                    b.dy = (b.dy / spd) * ns;
+                }
+            }
+
+        } else if (type === 'slowBall') {
+            // 공 속도 감소 — 기존 slowTimer보다 길게 적용
+            for (const b of this._balls)
+                b.slowTimer = Math.max(b.slowTimer, 240); // 4초
+
+        } else if (type === 'extraLife') {
+            if (this._lives < 5) {
+                this._lives++;
+                this._syncHUD();
+            }
         }
     }
 
@@ -724,13 +821,12 @@ class Game {
         if (this._lives <= 0) {
             this._gameOver(false);
         } else {
-            // 공 패들에 재부착 + READY 상태 복귀
             this._balls = [this._newBall()];
             this._phase = 'READY';
         }
     }
 
-    // ── 스테이지 클리어 ───────────────────────────────────────
+    // ── 스테이지 클리어 ──────────────────────────────────────
     _stageClear() {
         this._running = false;
         cancelAnimationFrame(this._raf);
@@ -771,36 +867,39 @@ class Game {
 
     _drawOverlay(msg, color) {
         ctx.save();
-        ctx.fillStyle = 'rgba(0,5,20,0.75)';
+        ctx.fillStyle = 'rgba(0,5,20,0.78)';
         ctx.fillRect(0, 0, CW, CH);
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor  = color; ctx.shadowBlur = 32;
+        ctx.shadowColor  = color; ctx.shadowBlur = 36;
         ctx.fillStyle    = color;
-        ctx.font         = 'bold 60px Orbitron, sans-serif';
-        ctx.fillText(msg, CW / 2, CH / 2 - 22);
+        ctx.font         = 'bold 62px Orbitron, sans-serif';
+        ctx.fillText(msg, CW / 2, CH / 2 - 24);
         ctx.shadowBlur   = 0;
-        ctx.fillStyle    = 'rgba(220,240,255,0.9)';
+        ctx.fillStyle    = 'rgba(220,240,255,0.88)';
         ctx.font         = '22px Noto Sans KR, sans-serif';
-        ctx.fillText(`SCORE: ${this._score}  |  BEST: ${this._highScore}`, CW / 2, CH / 2 + 34);
+        ctx.fillText(`SCORE: ${this._score}  |  BEST: ${this._highScore}`, CW / 2, CH / 2 + 36);
         ctx.restore();
     }
 
-    // ── 렌더링 ────────────────────────────────────────────────
+    // ── 렌더링 ───────────────────────────────────────────────
     _draw() {
         ctx.clearRect(0, 0, CW, CH);
 
-        // 배경 (흔들림 없음)
+        // 배경 (흔들림 없음 — 고정 배경)
+        // [디자인 담당 TODO] 아래 그라데이션을
+        //   ctx.drawImage(bgImg, 0, 0, CW, CH)
+        // 으로 교체하면 실제 배경 이미지 사용 가능 (bgImg는 상단에서 미리 로드)
         const bg = ctx.createLinearGradient(0, 0, 0, CH);
         bg.addColorStop(0, '#0a1e38');
         bg.addColorStop(1, '#050e1c');
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, CW, CH);
 
-        // ── 화면 흔들림 적용 영역 (게임 오브젝트 전체) ──
+        // ── 화면 흔들림 적용 영역 ──────────────────────────
         ctx.save();
         if (this._shakeFrames > 0) {
-            const progress = this._shakeFrames / 6;  // 1.0 → 0
+            const progress = this._shakeFrames / 6;
             const ix = (Math.random() - 0.5) * this._shakeIntensity * 2 * progress;
             const iy = (Math.random() - 0.5) * this._shakeIntensity * 2 * progress;
             ctx.translate(ix, iy);
@@ -817,21 +916,18 @@ class Game {
         this._paddle.draw(ctx);
 
         this._drawBlackout();
-
-        // 점수 팝업 (흔들림 영역 내부 — 세계 공간)
         this._scorePopups.forEach(sp => sp.draw(ctx));
 
         ctx.restore();
-        // ── 흔들림 영역 종료 ──
 
-        // 상태 텍스트 (UI — 흔들림 없음)
+        // ── 상태 UI 오버레이 (흔들림 없음) ─────────────────
         if (this._revTimer > 0) {
             ctx.save();
             ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.35;
             ctx.fillStyle   = '#ef233c';
             ctx.font        = 'bold 13px Orbitron, sans-serif';
             ctx.textAlign   = 'center';
-            ctx.fillText('⚠ 조작 반전 중', CW / 2, 48);
+            ctx.fillText('⚠ 조작 반전 중', CW / 2, CH - 48);
             ctx.restore();
         }
         if (this._balls.some(b => b.slowTimer > 0)) {
@@ -839,23 +935,23 @@ class Game {
             ctx.fillStyle = '#00b4d8';
             ctx.font      = 'bold 12px Orbitron, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('〜 속도 저하', CW / 2, 64);
+            ctx.fillText('〜 속도 저하', CW / 2, CH - 64);
             ctx.restore();
         }
 
-        // ── READY 상태: "PRESS SPACE TO START" 깜빡임 ──
+        // ── READY 상태: PRESS SPACE TO START 깜빡임 ────────
         if (this._phase === 'READY' && this._running) {
-            // 사인파로 부드럽게 깜빡임
-            const alpha = Math.sin(Date.now() * 0.004) * 0.45 + 0.55;  // 0.1 ~ 1.0
+            const alpha  = Math.sin(Date.now() * 0.004) * 0.45 + 0.55;
+            const readyY = this._paddle ? this._paddle.y + this._paddle.h + 60 : CH * 0.25;
             ctx.save();
             ctx.globalAlpha    = alpha;
             ctx.textAlign      = 'center';
             ctx.textBaseline   = 'middle';
             ctx.font           = 'bold 22px Orbitron, sans-serif';
             ctx.fillStyle      = '#ffffff';
-            ctx.shadowColor    = '#00b4d8';
-            ctx.shadowBlur     = 20;
-            ctx.fillText('PRESS SPACE TO START', CW / 2, CH * 0.35);
+            ctx.shadowColor    = '#00e5ff';
+            ctx.shadowBlur     = 22;
+            ctx.fillText('PRESS SPACE TO START', CW / 2, readyY);
             ctx.restore();
         }
     }
@@ -867,27 +963,30 @@ class Game {
         const alive = this._blocks.filter(b => b.alive);
         if (!alive.length) return;
 
-        const topY    = Math.min(...alive.map(b => b.y));
-        const revealH = cfg.blackout * (22 + 5);
-        const darkY   = topY + revealH;
+        // 블록 상단 N행만 노출 — 나머지 하단은 어둠으로 가림
+        const bh       = 18, gap = 5;
+        const topY     = Math.min(...alive.map(b => b.y));
+        const revealH  = cfg.blackout * (bh + gap);
+        const darkFrom = topY + revealH; // 이 y 좌표 아래는 어둠
 
         ctx.save();
         ctx.fillStyle = 'rgba(0,5,20,0.90)';
-        ctx.fillRect(0, darkY, CW, CH - darkY);
+        ctx.fillRect(0, darkFrom, CW, CH - darkFrom); // 하단 블록 영역을 어둠으로 덮기
 
         if (this._stage === 3) {
+            // Stage 3: 공 주변만 원형 시야 확보
             this._balls.forEach(ball => {
-                const grd = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, 88);
+                const grd = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, 100);
                 grd.addColorStop(0, 'rgba(0,5,20,0)');
                 grd.addColorStop(1, 'rgba(0,5,20,0.90)');
                 ctx.fillStyle = grd;
-                ctx.fillRect(0, darkY, CW, CH - darkY);
+                ctx.fillRect(0, darkFrom, CW, CH - darkFrom);
             });
         }
         ctx.restore();
     }
 
-    // ── HUD 동기화 ────────────────────────────────────────────
+    // ── HUD 동기화 ───────────────────────────────────────────
     _syncHUD(scoreChanged = false) {
         hudScoreEl.textContent = String(this._score).padStart(6, '0');
         if (scoreChanged) {

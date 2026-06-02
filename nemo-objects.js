@@ -2,10 +2,17 @@
 /* ============================================================
    nemo-objects.js — 구현 A 담당 파일
    역할: AudioManager, ScorePopup, Particle, Ball, Paddle, Block, Item
+
+   파일별 역할 분담:
+   · 이 파일     : 구현 담당자 A (코어 게임 오브젝트)
+   · nemo-story.js  : 스토리 담당자 (대사 데이터)
+   · nemo-game.js   : 구현 담당자 B (게임 제어 + 연출)
+   · nemo.html / nemo.css : 디자인 담당자
 ============================================================ */
 
 /* ============================================================
-   AudioManager
+   AudioManager — Web Audio API 기반 효과음
+   [구현 A 전담]
 ============================================================ */
 class AudioManager {
     constructor() {
@@ -17,7 +24,7 @@ class AudioManager {
 
     _boot() {
         if (this._ac) return;
-        this._ac = new (window.AudioContext || window.webkitAudioContext)();
+        this._ac     = new (window.AudioContext || window.webkitAudioContext)();
         this._master = this._ac.createGain();
         this._master.gain.value = 0.55;
         this._lpf               = this._ac.createBiquadFilter();
@@ -66,15 +73,10 @@ class AudioManager {
         src.start();
     }
 
-    playBlockBreak() {
-        this._noise(0.09, 0.6);
-        this._tone(320, 'sine', 0.07, 0.4);
-    }
-
-    playHardHit() {
-        this._tone(80,  'sawtooth', 0.15, 0.7);
-        this._tone(120, 'sine',     0.10, 0.3);
-    }
+    playBlockBreak()  { this._noise(0.09, 0.6); this._tone(320, 'sine', 0.07, 0.4); }
+    playHardHit()     { this._tone(80, 'sawtooth', 0.15, 0.7); this._tone(120, 'sine', 0.10, 0.3); }
+    playSharkAlert()  { this._tone(55, 'sawtooth', 0.6, 0.8);  this._tone(110, 'square', 0.3, 0.3); }
+    playPaddleHit()   { this._tone(280, 'sine', 0.06, 0.4); }
 
     playItemGet() {
         [440, 550, 660].forEach((f, i) =>
@@ -82,12 +84,11 @@ class AudioManager {
         );
     }
 
-    playSharkAlert() {
-        this._tone(55,  'sawtooth', 0.6, 0.8);
-        this._tone(110, 'square',   0.3, 0.3);
+    playMultiball() {
+        [330, 440, 550, 660, 770].forEach((f, i) =>
+            setTimeout(() => this._tone(f, 'sine', 0.20, 0.45), i * 45)
+        );
     }
-
-    playPaddleHit() { this._tone(280, 'sine', 0.06, 0.4); }
 
     playLifeLost() {
         [400, 300, 200].forEach((f, i) =>
@@ -119,20 +120,20 @@ class ScorePopup {
 
     update() {
         this.y    += this.vy;
-        this.vy   *= 0.97;   // 위로 올라갈수록 감속
+        this.vy   *= 0.97;
         this.life -= this.decay;
     }
 
     draw(ctx) {
         if (this.life <= 0) return;
         ctx.save();
-        ctx.globalAlpha    = Math.max(0, this.life);
-        ctx.font           = 'bold 16px Orbitron, sans-serif';
-        ctx.textAlign      = 'center';
-        ctx.textBaseline   = 'middle';
-        ctx.fillStyle      = '#FFD700';
-        ctx.shadowColor    = '#FF8C00';
-        ctx.shadowBlur     = 12;
+        ctx.globalAlpha  = Math.max(0, this.life);
+        ctx.font         = 'bold 16px Orbitron, sans-serif';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle    = '#FFD700';
+        ctx.shadowColor  = '#FF8C00';
+        ctx.shadowBlur   = 12;
         ctx.fillText(this.text, this.x, this.y);
         ctx.restore();
     }
@@ -141,10 +142,7 @@ class ScorePopup {
 }
 
 /* ============================================================
-   Particle — 3종류:
-     bubble : 위로 솟구치는 기포
-     rect   : 벽돌 색상 사각형 파편 (6~8개, 사방으로 튀어 중력 낙하)
-     debris : 원형 파편 (하위호환)
+   Particle — bubble / rect / debris
 ============================================================ */
 class Particle {
     constructor(x, y, kind, color = '#fff') {
@@ -158,21 +156,18 @@ class Particle {
             this.dx    = (Math.random() - 0.5) * 1.5;
             this.dy    = -(Math.random() * 3.5 + 2.5);
             this.decay = 0.025 + Math.random() * 0.02;
-
         } else if (kind === 'rect') {
-            this.pw    = Math.random() * 7 + 4;   // 가로 4~11px
-            this.ph    = Math.random() * 5 + 3;   // 세로 3~8px
-            const ang  = Math.random() * Math.PI * 2;  // 사방 360°
-            const spd  = Math.random() * 5 + 2;
-            this.dx    = Math.cos(ang) * spd;
-            this.dy    = Math.sin(ang) * spd;
-            this.decay = 0.020 + Math.random() * 0.018;
-            this.color = color;
-            this.rot   = Math.random() * Math.PI * 2;
+            this.pw     = Math.random() * 7 + 4;
+            this.ph     = Math.random() * 5 + 3;
+            const ang   = Math.random() * Math.PI * 2;
+            const spd   = Math.random() * 5 + 2;
+            this.dx     = Math.cos(ang) * spd;
+            this.dy     = Math.sin(ang) * spd;
+            this.decay  = 0.020 + Math.random() * 0.018;
+            this.color  = color;
+            this.rot    = Math.random() * Math.PI * 2;
             this.rotSpd = (Math.random() - 0.5) * 0.30;
-
         } else {
-            // debris (circle)
             this.r     = Math.random() * 3 + 1.5;
             this.dx    = (Math.random() - 0.5) * 3.5;
             this.dy    = Math.random() * 1.5 + 0.5;
@@ -190,7 +185,7 @@ class Particle {
             this.dx += (Math.random() - 0.5) * 0.15;
             this.dx  = Math.max(-1.2, Math.min(1.2, this.dx));
         } else if (this.kind === 'rect') {
-            this.dy  += 0.20;   // 중력
+            this.dy  += 0.20;
             this.rot += this.rotSpd;
         } else {
             this.dy += 0.08;
@@ -210,7 +205,7 @@ class Particle {
             );
             g.addColorStop(0, 'rgba(255,255,255,0.8)');
             g.addColorStop(1, 'rgba(150,230,255,0.1)');
-            ctx.fillStyle = g;
+            ctx.fillStyle   = g;
             ctx.fill();
             ctx.strokeStyle = 'rgba(255,255,255,0.35)';
             ctx.lineWidth   = 0.8;
@@ -235,25 +230,39 @@ class Particle {
     get dead() { return this.life <= 0; }
 }
 
-/**
- * 벽돌 파괴 시 파티클 생성
- * · bubble 3~4개 + rect 사각형 파편 6~8개
- */
 function spawnParticles(x, y, color) {
     const out = [];
-    const nb  = 3 + Math.floor(Math.random() * 2);   // bubble 3~4
-    const nd  = 6 + Math.floor(Math.random() * 3);   // rect   6~8
+    const nb  = 3 + Math.floor(Math.random() * 2);
+    const nd  = 6 + Math.floor(Math.random() * 3);
     for (let i = 0; i < nb; i++) out.push(new Particle(x, y, 'bubble', color));
     for (let i = 0; i < nd; i++) out.push(new Particle(x, y, 'rect',   color));
     return out;
 }
 
+
 /* ============================================================
-   Ball — 상하 반전 물리 (패들 상단, 블록 하단)
-   · trail 4개 잔상
-   · 패들 반사: pow(1.3) 커브로 중앙 수직, 가장자리 날카롭게
+   🚨 CORE OBJECTS — 구현 개발자 외 수정 금지 🚨
+   Ball · Paddle · Block · Item
+   이 구획 아래 클래스 내부 로직은 구현 팀원만 수정합니다.
+============================================================ */
+
+/* ============================================================
+   Ball — 반전 방향 물리 (패들 상단, 블록 하단)
+
+   물리 규칙:
+   · 공은 아래쪽(dy > 0)으로 발사, 하단 벽 반사, 상단으로 탈락
+   · MIN_DY 클램프: Y속도가 일정 수치 이하로 떨어지지 않아
+     공이 수평으로만 왕복하는 현상을 원천 차단
+   · 패들 반사: pow(1.3) 커브 — 중앙=수직, 가장자리=날카롭게
+
+   [디자인 담당 TODO] 공 외형을 이미지로 교체하려면:
+   draw() 의 ctx.arc() + createRadialGradient() 부분을
+   ctx.drawImage(ballImg, this.x - this.r, this.y - this.r, this.r*2, this.r*2)
+   으로 교체하세요. (이미지 로드는 nemo-game.js 상단에서 처리)
 ============================================================ */
 class Ball {
+    static MIN_DY = 1.5; // Y축 최소 속도 — 수평 루프 방지 상수
+
     constructor(x, y, color = '#ff6b35') {
         this.x         = x;
         this.y         = y;
@@ -267,15 +276,16 @@ class Ball {
         this.trail     = [];
     }
 
+    /** 공 발사 — ±45° 이내 아래쪽(양수 dy) 방향으로 */
     launch(speed) {
         this.stuck = false;
-        // Max ±45° from vertical — prevents near-horizontal trajectories at launch
         const angle = (Math.random() - 0.5) * Math.PI * 0.5;
         this.dx = Math.sin(angle) * speed;
-        this.dy = Math.cos(angle) * speed;
+        this.dy = Math.cos(angle) * speed; // 양수 = 아래쪽 (블록 방향)
     }
 
     update(paddle, cw, ch) {
+        // 패들에 붙어 있을 때: 패들 바로 아래에 위치
         if (this.stuck) {
             this.x = paddle.cx + this.stuckDx;
             this.y = paddle.y + paddle.h + this.r + 1;
@@ -285,28 +295,31 @@ class Ball {
         const s = this.slowTimer > 0 ? 0.45 : 1.0;
         if (this.slowTimer > 0) this.slowTimer--;
 
-        // 잔상: 최근 4프레임
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 4) this.trail.shift();
 
         this.x += this.dx * s;
         this.y += this.dy * s;
 
-        if (this.x - this.r < 0)  { this.x = this.r;      this.dx =  Math.abs(this.dx); }
-        if (this.x + this.r > cw) { this.x = cw - this.r; this.dx = -Math.abs(this.dx); }
-        if (this.y + this.r >= ch) { this.y = ch - this.r; this.dy = -Math.abs(this.dy); }
-        if (this.y + this.r < 0)  return 'lost';
+        // ── 벽 반사 ──────────────────────────────────────────
+        if (this.x - this.r < 0)   { this.x = this.r;       this.dx =  Math.abs(this.dx); }
+        if (this.x + this.r > cw)  { this.x = cw - this.r;  this.dx = -Math.abs(this.dx); }
+        if (this.y + this.r >= ch) { this.y = ch - this.r;   this.dy = -Math.abs(this.dy); } // 하단 벽 반사
+        if (this.y - this.r < 0)   return 'lost';                                              // 상단 이탈 → 목숨 감소
 
-        // 패들 충돌 — 공이 위로 올라갈 때만
+        // ── MIN DY 클램프: 수평 루프 방지 ────────────────────
+        if (Math.abs(this.dy) < Ball.MIN_DY)
+            this.dy = this.dy >= 0 ? Ball.MIN_DY : -Ball.MIN_DY;
+
+        // ── 패들 충돌: 공이 위(dy < 0)로 올라올 때만 처리 ──
         if (this.dy < 0 && this._hitPaddle(paddle)) {
-            // 중앙 → 수직, 가장자리 → 날카로운 각도 (pow 1.3 커브)
-            // maxAng 58° — dy가 최소 cos(58°)≈0.53*spd 보장, 낮은 각도 방지
-            const offset = (this.x - paddle.cx) / (paddle.w / 2);  // -1 ~ 1
+            const offset = (this.x - paddle.cx) / (paddle.w / 2); // -1 ~ +1
             const maxAng = 58 * (Math.PI / 180);
             const ang    = Math.sign(offset) * Math.pow(Math.abs(offset), 1.3) * maxAng;
             const spd    = Math.hypot(this.dx, this.dy);
             this.dx = Math.sin(ang) * spd;
-            this.dy = Math.abs(Math.cos(ang) * spd);  // 다시 아래 방향
+            this.dy = Math.abs(Math.cos(ang) * spd); // 양수 = 다시 아래로
+            if (this.dy < Ball.MIN_DY) this.dy = Ball.MIN_DY;
             this.y  = paddle.y + paddle.h + this.r + 1;
             return 'paddle';
         }
@@ -324,9 +337,9 @@ class Ball {
     }
 
     draw(ctx) {
-        // 잔상 렌더링 (오래될수록 작고 투명)
+        // 잔상
         this.trail.forEach((pt, i) => {
-            const t = (i + 1) / this.trail.length;  // 0.25 → 1.0
+            const t = (i + 1) / this.trail.length;
             ctx.beginPath();
             ctx.arc(pt.x, pt.y, this.r * 0.75 * t, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(255,107,53,${t * 0.45})`;
@@ -354,14 +367,19 @@ class Ball {
 
 /* ============================================================
    Paddle — 캔버스 상단 (y = 16), 마우스/키보드 lerp 이동
+
+   [디자인 담당 TODO] 패들 위 니모 이모지를 이미지로 교체하려면:
+   draw() 내 ctx.fillText('🐠', 0, 0) 을
+   ctx.drawImage(nemoImg, -nemoImg.width/2, -nemoImg.height/2) 로 교체
+   (이미지 로드는 nemo-game.js 상단에서 미리 처리)
 ============================================================ */
 class Paddle {
-    constructor(cw) {
+    constructor(cw, ch) {
         this._baseW   = 130;
         this.w        = this._baseW;
         this.h        = 12;
         this.x        = (cw - this.w) / 2;
-        this.y        = 16;
+        this.y        = 16; // 화면 상단 배치
         this.CW       = cw;
         this._targetX = this.x;
         this._fin     = 0;
@@ -411,17 +429,19 @@ class Paddle {
         ctx.lineWidth   = 1;
         ctx.stroke();
 
+        // 지느러미 (아래쪽 방향 = 플레이 영역을 향함)
         const finAng = (this._fin >> 1) % 2 === 0 ? -0.22 : 0.22;
         ctx.save();
-        ctx.translate(cx, y);
+        ctx.translate(cx, y + h);
         ctx.rotate(finAng);
         ctx.beginPath();
-        ctx.moveTo(-6, 0); ctx.lineTo(0, -16); ctx.lineTo(6, 0);
+        ctx.moveTo(-6, 0); ctx.lineTo(0, 16); ctx.lineTo(6, 0);
         ctx.closePath();
         ctx.fillStyle = this.shield ? '#ffe066' : '#ff6b35';
         ctx.fill();
         ctx.restore();
 
+        // 니모 이모지
         ctx.save();
         ctx.shadowBlur  = 0;
         ctx.shadowColor = 'transparent';
@@ -432,7 +452,7 @@ class Paddle {
         const nemoWobble = this._hitAnim > 0
             ? Math.sin(this._hitAnim * 0.35) * (this._hitAnim / 22) * 0.45 : 0;
         const nemoScale  = 1 + (this._hitAnim / 22) * 0.2;
-        ctx.translate(cx + 14, y - 8);
+        ctx.translate(cx + 14, y + h + 8);
         ctx.rotate(nemoWobble);
         ctx.scale(-nemoScale, nemoScale);
         ctx.font         = '18px serif';
@@ -441,9 +461,10 @@ class Paddle {
         ctx.fillText('🐠', 0, 0);
         ctx.restore();
 
+        // 방어막 — 패들 아래쪽 반원 (플레이 영역 방향)
         if (this.shield) {
             ctx.beginPath();
-            ctx.arc(cx, y + h / 2, w / 2 + 8, Math.PI, Math.PI * 2);
+            ctx.arc(cx, y + h / 2, w / 2 + 8, 0, Math.PI);
             ctx.strokeStyle = 'rgba(255,220,50,0.5)';
             ctx.lineWidth   = 2.5;
             ctx.stroke();
@@ -476,14 +497,19 @@ class Block {
         this._vang     = Math.random() * Math.PI * 2;
         this._cracks   = [];
         this._itemType = null;
+        this._flashT   = 0; // 하드 블록 피격 플래시 타이머
     }
 
     get color() { return this._cp[0]; }
 
     hit() {
         this.hp--;
-        if (this.hp > 0) this._addCrack();
-        else             this.alive = false;
+        if (this.hp > 0) {
+            this._addCrack();
+            this._flashT = 8; // 피격 플래시 트리거
+        } else {
+            this.alive = false;
+        }
         return this.hp;
     }
 
@@ -497,6 +523,7 @@ class Block {
 
     update() {
         if (this.type === BT.vortex) this._vang += 0.04;
+        if (this._flashT > 0) this._flashT--;
     }
 
     draw(ctx) {
@@ -516,8 +543,11 @@ class Block {
             ctx.fill();
 
         } else if (this.type === BT.hard) {
-            ctx.shadowColor = '#666';
-            ctx.shadowBlur  = 6;
+            // 피격 플래시
+            const flashAlpha = this._flashT > 0 ? (this._flashT / 8) * 0.65 : 0;
+            ctx.shadowColor  = this._flashT > 0 ? '#ffffff' : '#666';
+            ctx.shadowBlur   = this._flashT > 0 ? 20 : 6;
+
             const g = ctx.createLinearGradient(x, y, x + w, y + h);
             g.addColorStop(0,   '#6b7280');
             g.addColorStop(0.5, '#374151');
@@ -526,6 +556,13 @@ class Block {
             ctx.beginPath();
             ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
             ctx.fill();
+
+            if (flashAlpha > 0) {
+                ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
+                ctx.beginPath();
+                ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
+                ctx.fill();
+            }
 
             ctx.strokeStyle = 'rgba(255,255,255,0.65)';
             ctx.lineWidth   = 1.2;
@@ -580,32 +617,53 @@ class Block {
 Block._img = null;
 
 /* ============================================================
-   Item — 아이템 드롭 (부력으로 위로 이동)
+   아이템 타입 정보
+   [기획 담당 수정 가능] label · color 만 수정하세요.
+   새 타입 추가 시 nemo-game.js _applyItem() 에 케이스 추가 필요.
+
+   · extraBall  : 공 1개 추가
+   · shield     : 패들 방어막 (일정 시간)
+   · paddleWide : 패들 너비 확장 (일정 시간)
+   · multiball  : 현재 공 각각에서 ±30° 복사본 2개 생성 (분열)
+   · speedUp    : 공 속도 20% 즉시 증가
+   · slowBall   : 공 속도 감소 (4초)
+   · extraLife  : 목숨 1개 추가
 ============================================================ */
 const ITEM_INFO = {
-    extraBall:  { label: '+B', color: '#f7d716' },
-    shield:     { label: 'SH', color: '#00b4d8' },
-    paddleWide: { label: 'PW', color: '#ff6b35' },
+    extraBall:  { label: '+B',  color: '#f7d716' },
+    shield:     { label: 'SH',  color: '#00b4d8' },
+    paddleWide: { label: 'PW',  color: '#ff6b35' },
+    multiball:  { label: '×3',  color: '#ff6b9d' },
+    speedUp:    { label: 'SP↑', color: '#ff4500' },
+    slowBall:   { label: 'SL',  color: '#4fc3f7' },
+    extraLife:  { label: '+♥',  color: '#ff69b4' },
 };
 
+/* ============================================================
+   Item — 아이템 드롭 (블록 상단 → 패들 방향으로 낙하)
+
+   [디자인 담당 TODO] 이모지/텍스트 대신 아이콘 이미지를 사용하려면:
+   draw() 내 ctx.fillText(info.label, ...) 을
+   ctx.drawImage(itemImgs[this.type], this.x-r, this.y-r, r*2, r*2) 로 교체
+============================================================ */
 class Item {
     constructor(x, y, type) {
         this.x     = x; this.y = y; this.type = type;
         this.r     = 12;
-        this.dy    = -2.2;
+        this.dy    = -2.2; // 음수 = 위로 떠오름 (패들 방향)
         this.dx    = (Math.random() - 0.5) * 0.8;
         this.alive = true;
         this._wob  = 0;
     }
 
-    update(cw) {
+    update(cw, ch) {
         this._wob += 0.08;
         this.dx   += Math.sin(this._wob) * 0.04;
         this.dx    = Math.max(-1.5, Math.min(1.5, this.dx));
         this.x    += this.dx;
         this.y    += this.dy;
         if (this.x - this.r < 0 || this.x + this.r > cw) this.dx *= -1;
-        if (this.y + this.r < 0) this.alive = false;
+        if (this.y + this.r < 0) this.alive = false; // 화면 상단 이탈
     }
 
     hits(paddle) {
