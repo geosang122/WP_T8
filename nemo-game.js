@@ -9,6 +9,11 @@ const ctx        = canvas.getContext('2d');
 const CW         = canvas.width;   // 1100
 const CH         = canvas.height;  // 650
 
+// 벽돌 기준 크기 (CW=1100 기준 절대값 — CW가 바뀌면 비례 스케일됨)
+const BASE_BLOCK_W   = 48;
+const BASE_BLOCK_H   = 18;
+const BASE_BLOCK_GAP = 3;
+
 const hudStageEl = document.getElementById('hudStageNum');
 const hudScoreEl = document.getElementById('hudScoreNum');
 const hudTimerEl = document.getElementById('hudTimerNum');
@@ -35,6 +40,22 @@ const LS_KEY = 'nemo_breakout_v1';
 function loadSave()      { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } }
 function writeSave(data) { localStorage.setItem(LS_KEY, JSON.stringify({ ...loadSave(), ...data })); }
 
+const nemoFatherLeftImg  = new Image(); nemoFatherLeftImg.src  = 'assets/images/nemo_father_left.png';
+const nemoFatherRightImg = new Image(); nemoFatherRightImg.src = 'assets/images/nemo_father_right.png';
+
+function _mkImg(src) { const i = new Image(); i.src = src; return i; }
+const sharkImgs = {
+    1: { left: _mkImg('assets/images/shark1_left.png'),  right: _mkImg('assets/images/shark1_right.png') },
+    2: { left: _mkImg('assets/images/shark2_left.png'),  right: _mkImg('assets/images/shark2_right.png') },
+    3: { left: _mkImg('assets/images/shark3_left.png'),  right: _mkImg('assets/images/shark3_right.png') },
+};
+
+const blockImgs = [
+    _mkImg('assets/images/block1.png'),
+    _mkImg('assets/images/block2.png'),
+    _mkImg('assets/images/block3.png'),
+];
+
 
 /* ============================================================
    📋 STAGE CONFIG — 기획/스토리 담당자 수정 영역
@@ -44,7 +65,6 @@ function writeSave(data) { localStorage.setItem(LS_KEY, JSON.stringify({ ...load
      timerSec   : 제한 시간 초 (null = 무제한)
      rows       : 블록 행 수
      cols       : 블록 열 수
-     blackout   : 블록 시야 제한 행 수 (0 = 없음, 1~3 권장)
      shark      : 상어 등장 여부
      vortex     : 소용돌이 블록 포함 여부
      dorisAI    : Stage 1 도리 경로 가이드 표시 여부
@@ -52,13 +72,13 @@ function writeSave(data) { localStorage.setItem(LS_KEY, JSON.stringify({ ...load
      sharkSpeed : 상어 이동 속도 (shark: true 일 때만 유효)
 ============================================================ */
 const STAGE_CFG = {
-    1: { speed: 5.5, timerSec: null, rows: 7,  cols: 17, blackout: 0, shark: false, vortex: false, dorisAI: true,  itemChance: 0.18, sharkSpeed: 2.8 },
-    2: { speed: 7.0, timerSec: 90,   rows: 9,  cols: 19, blackout: 2, shark: true,  vortex: false, dorisAI: false, itemChance: 0.22, sharkSpeed: 3.5 },
-    3: { speed: 8.5, timerSec: 60,   rows: 11, cols: 21, blackout: 1, shark: false, vortex: true,  dorisAI: false, itemChance: 0.28, sharkSpeed: 4.0 },
+    1: { speed: 5.5, timerSec: null, rows: 7,  cols: 17, shark: false, vortex: false, dorisAI: true,  itemChance: 0.18, sharkSpeed: 2.8 },
+    2: { speed: 7.0, timerSec: 90,   rows: 9,  cols: 19, shark: true,  vortex: false, dorisAI: false, itemChance: 0.22, sharkSpeed: 3.5 },
+    3: { speed: 8.5, timerSec: 60,   rows: 11, cols: 21, shark: true,  vortex: true,  dorisAI: false, itemChance: 0.28, sharkSpeed: 4.0 },
 };
 
 /* ── 아이템 풀 (기획 담당: 드롭 아이템 종류 변경 가능) ──────── */
-const ITEM_POOL = ['extraBall', 'shield', 'paddleWide', 'multiball', 'speedUp', 'slowBall', 'extraLife'];
+const ITEM_POOL = ['extraBall', 'paddleWide', 'multiball', 'speedUp', 'slowBall', 'extraLife'];
 
 
 /* ============================================================
@@ -76,20 +96,27 @@ const ITEM_POOL = ['extraBall', 'shield', 'paddleWide', 'multiball', 'speedUp', 
      같은 횡단 중 중복 반전 방지
 ============================================================ */
 class Shark {
-    constructor(cw, ch, speed = 2.8) {
-        this.CW  = cw; this.CH = ch;
-        this.w   = 80; this.h  = 40;
+    /**
+     * @param {number} type      상어 종류 (1·2·3)
+     * @param {number} laneY     고정 레인 y 좌표
+     * @param {number} initDelay 초기 대기 프레임 (스태거용)
+     */
+    constructor(cw, ch, type, laneY, speed, initDelay = 0) {
+        this.CW   = cw; this.CH = ch;
+        this.type = type;
+        this.w    = 110; this.h = 45; // 1468:601 비율
 
-        this.active        = false;
-        this._cooldown     = 180; // 초기 지연 (약 3초)
-        this._cooldownMax  = 420; // 횡단 간격 기본값 (약 7초)
-        this._hitCooldown  = 0;   // 같은 횡단 내 중복 충돌 방지
-        this._speed        = speed;
+        this.active       = false;
+        this._hitCooldown = 0;
+        this._speed       = speed;
+        this.dx           = speed;
+        this.laneY        = laneY;
+        this.y            = laneY;
+        this.x            = -this.w;
 
-        // 위치 초기화 (activate 시 재지정)
-        this.x  = -this.w;
-        this.y  = ch * 0.4;
-        this.dx = speed;
+        this._cooldown    = 180 + initDelay;
+        this._cooldownMin = 450;
+        this._cooldownMax = 720;
     }
 
     update() {
@@ -97,25 +124,24 @@ class Shark {
 
         if (!this.active) {
             if (--this._cooldown <= 0) {
-                this.active        = true;
-                this._cooldown     = this._cooldownMax + Math.floor(Math.random() * 120);
-                this._hitCooldown  = 0;
+                this.active       = true;
+                this._cooldown    = this._cooldownMin +
+                    Math.floor(Math.random() * (this._cooldownMax - this._cooldownMin));
+                this._hitCooldown = 0;
 
                 const goRight = Math.random() > 0.5;
                 this.dx = goRight ?  this._speed : -this._speed;
-                this.x  = goRight ? -this.w     :  this.CW + this.w;
-                this.y  = this.CH * 0.18 + Math.random() * this.CH * 0.50;
+                this.x  = goRight ? -this.w : this.CW + this.w;
+                this.y  = this.laneY;
             }
             return;
         }
 
         this.x += this.dx;
-
         if (this.dx > 0 && this.x > this.CW + this.w) this.active = false;
         if (this.dx < 0 && this.x < -this.w)          this.active = false;
     }
 
-    /** 충돌 면 반환 ('x' | 'y') — 비활성·히트쿨다운 중이면 null */
     hitsBall(ball) {
         if (!this.active || this._hitCooldown > 0) return null;
         const cx  = this.x + this.w / 2;
@@ -128,50 +154,16 @@ class Shark {
         return ovX < ovY ? 'x' : 'y';
     }
 
-    /** 충돌 처리 후 호출 — 같은 횡단 중 중복 반전 방지 쿨타임 설정 */
-    registerHit() {
-        this._hitCooldown = 45; // 약 0.75초
-    }
+    registerHit() { this._hitCooldown = 45; }
 
     draw(ctx) {
         if (!this.active) return;
-        const { x, y, w, h } = this;
-        const flip = this.dx < 0;
+        const { x, y, w, h, dx, type } = this;
+        const img = sharkImgs[type][dx > 0 ? 'right' : 'left'];
         ctx.save();
-        ctx.translate(x + w / 2, y + h / 2);
-        if (flip) ctx.scale(-1, 1);
         ctx.shadowColor = '#ef233c';
         ctx.shadowBlur  = 16;
-
-        ctx.fillStyle = '#4a90d9';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#357abd';
-        ctx.beginPath();
-        ctx.moveTo(-5, -h / 2); ctx.lineTo(5, -h / 2 - 18); ctx.lineTo(14, -h / 2);
-        ctx.closePath(); ctx.fill();
-
-        ctx.beginPath();
-        ctx.moveTo(-w / 2, 0);
-        ctx.lineTo(-w / 2 - 18, -12);
-        ctx.lineTo(-w / 2 - 18,  12);
-        ctx.closePath(); ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(w / 2 - 10, -5, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(w / 2 -  9, -5, 2.5, 0, Math.PI * 2); ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        for (let i = 0; i < 4; i++) {
-            ctx.beginPath();
-            ctx.moveTo(w / 2 - 8 + i * 5, h / 2 - 2);
-            ctx.lineTo(w / 2 - 5 + i * 5, h / 2 + 8);
-            ctx.lineTo(w / 2 - 2 + i * 5, h / 2 - 2);
-            ctx.closePath(); ctx.fill();
-        }
+        ctx.drawImage(img, x, y, w, h);
         ctx.restore();
     }
 }
@@ -357,10 +349,9 @@ class Game {
         this._blocks    = [];
         this._items     = [];
         this._particles = [];
-        this._shark     = null;
+        this._sharks    = [];
         this._dory      = null;
         this._mouseX    = CW / 2;
-        this._revTimer  = 0;
 
         this._phase          = 'READY';
         this._shakeFrames    = 0;
@@ -501,7 +492,6 @@ class Game {
         this._running  = true;
         this._paused   = false;
         this._clearing = false;
-        this._revTimer = 0;
         this._blocksDestroyed = 0;
         this._particles   = [];
         this._items       = [];
@@ -516,7 +506,14 @@ class Game {
         this._blocks = this._buildBlocks(cfg);
         this._balls  = [this._newBall()];
 
-        this._shark = cfg.shark ? new Shark(CW, CH, cfg.sharkSpeed * spdMul) : null;
+        if (cfg.shark) {
+            const spd   = cfg.sharkSpeed * spdMul;
+            const lanes = [CH * 0.28, CH * 0.50, CH * 0.72];
+            this._sharks = [1, 2, 3].map((t, i) =>
+                new Shark(CW, CH, t, lanes[i], spd, i * 180));
+        } else {
+            this._sharks = [];
+        }
         this._dory  = cfg.dorisAI ? new Dory(CW, CH) : null;
         if (this._dory) {
             // 블록 그리드 중앙에 갇힌 상태로 시작 — 블록이 깨지면 A*로 탈출
@@ -527,7 +524,7 @@ class Game {
             }
             this._dory.recalcPath(this._blocks, this._paddle);
         }
-        if (this._shark) setTimeout(() => this.audio.playSharkAlert(), 800);
+        if (this._sharks.length) setTimeout(() => this.audio.playSharkAlert(), 800);
 
         document.getElementById('canvasPlaceholder').style.display = 'none';
         document.getElementById('btnPause').textContent = '⏸';
@@ -538,17 +535,20 @@ class Game {
     }
 
     _buildBlocks(cfg) {
-        const sideMargin   = 32;
-        const bottomMargin = 24; // 하단 여백 — 블록이 화면 하단에 배치됨
-        const gap = 5, bh = 18;
-        const bw     = (CW - sideMargin * 2 - gap * (cfg.cols - 1)) / cfg.cols;
+        const scale        = CW / 1100;
+        const bottomMargin = Math.round(24 * scale);
+        const gap = Math.max(1, Math.round(BASE_BLOCK_GAP * scale));
+        const bw  = Math.round(BASE_BLOCK_W * scale);
+        const bh  = Math.round(BASE_BLOCK_H * scale);
+        const totalW = cfg.cols * bw + (cfg.cols - 1) * gap;
         const totalH = cfg.rows * bh + (cfg.rows - 1) * gap;
-        const startY = CH - bottomMargin - totalH; // 하단부터 쌓기
+        const startX = Math.round((CW - totalW) / 2); // 가운데 정렬
+        const startY = CH - bottomMargin - totalH;
         const blocks = [];
 
         for (let r = 0; r < cfg.rows; r++) {
             for (let c = 0; c < cfg.cols; c++) {
-                const x = sideMargin + c * (bw + gap);
+                const x = startX + c * (bw + gap);
                 const y = startY + r * (bh + gap);
 
                 // 하드 블록은 뒤쪽(하단) 2행에만 소수 배치 — 앞에 두면 게임이 루즈해짐
@@ -607,7 +607,7 @@ class Game {
                 this._timerMs -= 1000;
                 this._timer = Math.max(0, this._timer - 1);
                 this._syncHUD();
-                if (this._timer === 0) { this._gameOver(false); return; }
+                if (this._timer === 0) { this._gameOver(); return; }
             }
         }
 
@@ -619,21 +619,16 @@ class Game {
         this._paddle.moveTo(this._mouseX);
         this._paddle.update();
 
-        if (this._revTimer > 0) {
-            this._revTimer--;
-            this._paddle.reversed = this._revTimer > 0;
-        }
-
-        // ── 상어 (Stage 2 — 공 튕기기) ──────────────────────
-        if (this._shark) {
-            this._shark.update();
+        // ── 상어 (Stage 2/3 — 공 튕기기) ─────────────────────
+        for (const shark of this._sharks) {
+            shark.update();
             for (const b of this._balls) {
                 if (!b.stuck) {
-                    const side = this._shark.hitsBall(b);
+                    const side = shark.hitsBall(b);
                     if (side) {
                         if (side === 'x') b.dx *= -1;
                         else              b.dy *= -1;
-                        this._shark.registerHit();
+                        shark.registerHit();
                         this.audio.playPaddleHit();
                     }
                 }
@@ -761,9 +756,6 @@ class Game {
             this._balls.push(nb);
             setTimeout(() => nb.launch(this._baseSpeed), 300);
 
-        } else if (type === 'shield') {
-            this._paddle.applyShield(360);
-
         } else if (type === 'paddleWide') {
             this._paddle.applyExpand(480);
 
@@ -819,7 +811,7 @@ class Game {
         this.audio.playLifeLost();
         this._syncHUD();
         if (this._lives <= 0) {
-            this._gameOver(false);
+            this._gameOver();
         } else {
             this._balls = [this._newBall()];
             this._phase = 'READY';
@@ -853,10 +845,10 @@ class Game {
         else                  { setTimeout(next, 800); }
     }
 
-    _gameOver(win) {
+    _gameOver() {
         this._running = false;
         cancelAnimationFrame(this._raf);
-        this._drawOverlay(win ? 'STAGE CLEAR!' : 'GAME OVER', win ? '#f7d716' : '#ef233c');
+        this._drawOverlay('GAME OVER', '#ef233c');
         setTimeout(() => { showScreen('stages'); this._applyUnlocked(); }, 3500);
     }
 
@@ -911,25 +903,16 @@ class Game {
         this._blocks.forEach(b     => b.draw(ctx));
         this._items.forEach(it     => it.draw(ctx));
         if (this._dory)  this._dory.draw(ctx);
-        if (this._shark) this._shark.draw(ctx);
+        this._sharks.forEach(s => s.draw(ctx));
         this._balls.forEach(b      => b.draw(ctx));
         this._paddle.draw(ctx);
 
-        this._drawBlackout();
+
         this._scorePopups.forEach(sp => sp.draw(ctx));
 
         ctx.restore();
 
         // ── 상태 UI 오버레이 (흔들림 없음) ─────────────────
-        if (this._revTimer > 0) {
-            ctx.save();
-            ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.35;
-            ctx.fillStyle   = '#ef233c';
-            ctx.font        = 'bold 13px Orbitron, sans-serif';
-            ctx.textAlign   = 'center';
-            ctx.fillText('⚠ 조작 반전 중', CW / 2, CH - 48);
-            ctx.restore();
-        }
         if (this._balls.some(b => b.slowTimer > 0)) {
             ctx.save();
             ctx.fillStyle = '#00b4d8';
@@ -954,36 +937,6 @@ class Game {
             ctx.fillText('PRESS SPACE TO START', CW / 2, readyY);
             ctx.restore();
         }
-    }
-
-    _drawBlackout() {
-        const cfg = STAGE_CFG[this._stage];
-        if (!cfg.blackout) return;
-
-        const alive = this._blocks.filter(b => b.alive);
-        if (!alive.length) return;
-
-        // 블록 상단 N행만 노출 — 나머지 하단은 어둠으로 가림
-        const bh       = 18, gap = 5;
-        const topY     = Math.min(...alive.map(b => b.y));
-        const revealH  = cfg.blackout * (bh + gap);
-        const darkFrom = topY + revealH; // 이 y 좌표 아래는 어둠
-
-        ctx.save();
-        ctx.fillStyle = 'rgba(0,5,20,0.90)';
-        ctx.fillRect(0, darkFrom, CW, CH - darkFrom); // 하단 블록 영역을 어둠으로 덮기
-
-        if (this._stage === 3) {
-            // Stage 3: 공 주변만 원형 시야 확보
-            this._balls.forEach(ball => {
-                const grd = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, 100);
-                grd.addColorStop(0, 'rgba(0,5,20,0)');
-                grd.addColorStop(1, 'rgba(0,5,20,0.90)');
-                ctx.fillStyle = grd;
-                ctx.fillRect(0, darkFrom, CW, CH - darkFrom);
-            });
-        }
-        ctx.restore();
     }
 
     // ── HUD 동기화 ───────────────────────────────────────────

@@ -375,101 +375,91 @@ class Ball {
 ============================================================ */
 class Paddle {
     constructor(cw, ch) {
-        this._baseW   = 130;
+        this._baseW   = 100;
         this.w        = this._baseW;
-        this.h        = 12;
+        this.h        = 64; // nemo_father 비율(1192×762 ≈ 1.565) 유지
         this.x        = (cw - this.w) / 2;
         this.y        = 16; // 화면 상단 배치
         this.CW       = cw;
         this._targetX = this.x;
-        this._fin     = 0;
-        this._hitAnim = 0;
-        this.reversed = false;
-        this.shield   = false;
-        this._shieldT = 0;
         this._expandT = 0;
+        this.direction = 'right'; // 현재 이동 방향
+        this._waterTrails = [];
+        this._trailTimer  = 0;
     }
 
     get cx() { return this.x + this.w / 2; }
 
     moveTo(mouseX) {
-        const tx = this.reversed ? this.CW - mouseX : mouseX;
-        this._targetX = Math.max(0, Math.min(this.CW - this.w, tx - this.w / 2));
+        const newTarget = Math.max(0, Math.min(this.CW - this.w, mouseX - this.w / 2));
+        this.direction = newTarget >= this._targetX ? 'right' : 'left';
+        this._targetX  = newTarget;
     }
 
     update() {
         this.x += (this._targetX - this.x) * 0.18;
-        this._fin++;
-        if (this._hitAnim > 0) this._hitAnim--;
-        if (this._shieldT > 0) { this._shieldT--; } else { this.shield = false; }
         if (this._expandT > 0) { this._expandT--; this.w = this._baseW * 1.55; }
         else                   { this.w = this._baseW; }
+
+        // 헤엄칠 때 뒤쪽에서 물거품 생성
+        const moveDelta = this._targetX - this.x;
+        if (Math.abs(moveDelta) > 0.5) {
+            if (++this._trailTimer % 4 === 0) {
+                const tx = moveDelta > 0 ? this.x + 8 : this.x + this.w - 8;
+                const count = Math.random() < 0.35 ? 2 : 1;
+                for (let i = 0; i < count; i++) {
+                    this._waterTrails.push({
+                        x:      tx + (Math.random() - 0.5) * 18,
+                        y:      this.y + this.h * (0.25 + Math.random() * 0.55),
+                        r:      1.5 + Math.random() * 3.5,
+                        alpha:  0.65 + Math.random() * 0.25,
+                        vy:     -(0.5 + Math.random() * 0.9),
+                        vx:     (Math.random() - 0.5) * 0.4,
+                        wob:    Math.random() * Math.PI * 2,
+                        wobSpd: 0.05 + Math.random() * 0.05,
+                    });
+                }
+            }
+        }
+        for (let i = this._waterTrails.length - 1; i >= 0; i--) {
+            const t = this._waterTrails[i];
+            t.wob += t.wobSpd;
+            t.x   += t.vx + Math.sin(t.wob) * 0.25;
+            t.y   += t.vy;
+            t.alpha -= 0.010 + (t.r < 2.5 ? 0.005 : 0);
+            if (t.alpha <= 0) this._waterTrails.splice(i, 1);
+        }
     }
 
-    applyShield(frames = 300) { this.shield = true; this._shieldT = frames; }
     applyExpand(frames = 400) { this._expandT = frames; }
-    onBallHit()               { this._hitAnim = 22; }
+    onBallHit()               {}
 
     draw(ctx) {
-        const { x, y, w, h } = this;
-        const cx = x + w / 2;
+        const { x, y, w, h, direction } = this;
 
-        ctx.save();
-        ctx.shadowColor = this.shield ? '#f7d716' : '#ff6b35';
-        ctx.shadowBlur  = this.shield ? 22 : 14;
-
-        const g = ctx.createLinearGradient(x, y, x, y + h);
-        g.addColorStop(0, this.shield ? '#ffe066' : '#ff8a50');
-        g.addColorStop(1, this.shield ? '#ffd700' : '#c04010');
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, h / 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-        ctx.lineWidth   = 1;
-        ctx.stroke();
-
-        // 지느러미 (아래쪽 방향 = 플레이 영역을 향함)
-        const finAng = (this._fin >> 1) % 2 === 0 ? -0.22 : 0.22;
-        ctx.save();
-        ctx.translate(cx, y + h);
-        ctx.rotate(finAng);
-        ctx.beginPath();
-        ctx.moveTo(-6, 0); ctx.lineTo(0, 16); ctx.lineTo(6, 0);
-        ctx.closePath();
-        ctx.fillStyle = this.shield ? '#ffe066' : '#ff6b35';
-        ctx.fill();
-        ctx.restore();
-
-        // 니모 이모지
-        ctx.save();
-        ctx.shadowBlur  = 0;
-        ctx.shadowColor = 'transparent';
-        if (this._hitAnim > 0) {
-            ctx.shadowColor = 'rgba(255,140,50,0.55)';
-            ctx.shadowBlur  = 6;
-        }
-        const nemoWobble = this._hitAnim > 0
-            ? Math.sin(this._hitAnim * 0.35) * (this._hitAnim / 22) * 0.45 : 0;
-        const nemoScale  = 1 + (this._hitAnim / 22) * 0.2;
-        ctx.translate(cx + 14, y + h + 8);
-        ctx.rotate(nemoWobble);
-        ctx.scale(-nemoScale, nemoScale);
-        ctx.font         = '18px serif';
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🐠', 0, 0);
-        ctx.restore();
-
-        // 방어막 — 패들 아래쪽 반원 (플레이 영역 방향)
-        if (this.shield) {
+        // 물거품 먼저 그리기 (물고기 아래에 렌더링)
+        this._waterTrails.forEach(t => {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, t.alpha);
+            // 반투명 버블 본체
             ctx.beginPath();
-            ctx.arc(cx, y + h / 2, w / 2 + 8, 0, Math.PI);
-            ctx.strokeStyle = 'rgba(255,220,50,0.5)';
-            ctx.lineWidth   = 2.5;
+            ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(180,240,255,0.15)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(160,228,255,0.72)';
+            ctx.lineWidth = 0.9;
             ctx.stroke();
-        }
+            // 하이라이트 (왼쪽 위 작은 흰 점 — 버블 느낌)
+            ctx.beginPath();
+            ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.28, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.fill();
+            ctx.restore();
+        });
 
+        const img = direction === 'left' ? nemoFatherLeftImg : nemoFatherRightImg;
+        ctx.save();
+        ctx.drawImage(img, x, y, w, h);
         ctx.restore();
     }
 }
@@ -492,6 +482,7 @@ class Block {
         this.type      = type;
         this.alive     = true;
         this._cp       = ROW_COLORS[row % ROW_COLORS.length];
+        this._imgIdx   = row % 3;
         this.hp        = type === BT.hard ? 3 : 1;
         this.maxHp     = this.hp;
         this._vang     = Math.random() * Math.PI * 2;
@@ -529,33 +520,50 @@ class Block {
     draw(ctx) {
         if (!this.alive) return;
         const { x, y, w, h } = this;
+        const bImgs = typeof blockImgs !== 'undefined' ? blockImgs : null;
+
         ctx.save();
 
         if (this.type === BT.normal) {
             ctx.shadowColor = this._cp[0];
             ctx.shadowBlur  = 8;
-            const g = ctx.createLinearGradient(x, y, x, y + h);
-            g.addColorStop(0, this._cp[1]);
-            g.addColorStop(1, this._cp[0]);
-            ctx.fillStyle = g;
+            ctx.save();
             ctx.beginPath();
             ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.fill();
+            ctx.clip();
+            if (bImgs?.[this._imgIdx]?.complete) {
+                ctx.drawImage(bImgs[this._imgIdx], x + 1, y + 1, w - 2, h - 2);
+            } else {
+                const g = ctx.createLinearGradient(x, y, x, y + h);
+                g.addColorStop(0, this._cp[1]);
+                g.addColorStop(1, this._cp[0]);
+                ctx.fillStyle = g;
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            }
+            ctx.restore();
 
         } else if (this.type === BT.hard) {
-            // 피격 플래시
             const flashAlpha = this._flashT > 0 ? (this._flashT / 8) * 0.65 : 0;
             ctx.shadowColor  = this._flashT > 0 ? '#ffffff' : '#666';
             ctx.shadowBlur   = this._flashT > 0 ? 20 : 6;
 
-            const g = ctx.createLinearGradient(x, y, x + w, y + h);
-            g.addColorStop(0,   '#6b7280');
-            g.addColorStop(0.5, '#374151');
-            g.addColorStop(1,   '#1f2937');
-            ctx.fillStyle = g;
+            ctx.save();
             ctx.beginPath();
             ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.fill();
+            ctx.clip();
+            if (bImgs?.[2]?.complete) {
+                ctx.drawImage(bImgs[2], x + 1, y + 1, w - 2, h - 2);
+            } else {
+                const g = ctx.createLinearGradient(x, y, x + w, y + h);
+                g.addColorStop(0,   '#6b7280');
+                g.addColorStop(0.5, '#374151');
+                g.addColorStop(1,   '#1f2937');
+                ctx.fillStyle = g;
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            }
+            ctx.fillStyle = 'rgba(20,20,30,0.52)';
+            ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            ctx.restore();
 
             if (flashAlpha > 0) {
                 ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
@@ -580,16 +588,26 @@ class Block {
                 ctx.fill();
             }
 
-        } else {
+        } else { // vortex
             ctx.shadowColor = '#00b4d8';
             ctx.shadowBlur  = 12;
-            const g = ctx.createLinearGradient(x, y, x + w, y + h);
-            g.addColorStop(0, '#0077b6');
-            g.addColorStop(1, '#023e8a');
-            ctx.fillStyle = g;
+
+            ctx.save();
             ctx.beginPath();
             ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.fill();
+            ctx.clip();
+            if (bImgs?.[1]?.complete) {
+                ctx.drawImage(bImgs[1], x + 1, y + 1, w - 2, h - 2);
+            } else {
+                const g = ctx.createLinearGradient(x, y, x + w, y + h);
+                g.addColorStop(0, '#0077b6');
+                g.addColorStop(1, '#023e8a');
+                ctx.fillStyle = g;
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            }
+            ctx.fillStyle = 'rgba(0,50,120,0.45)';
+            ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            ctx.restore();
 
             ctx.save();
             ctx.translate(x + w / 2, y + h / 2);
@@ -614,15 +632,12 @@ class Block {
     }
 }
 
-Block._img = null;
-
 /* ============================================================
    아이템 타입 정보
    [기획 담당 수정 가능] label · color 만 수정하세요.
    새 타입 추가 시 nemo-game.js _applyItem() 에 케이스 추가 필요.
 
    · extraBall  : 공 1개 추가
-   · shield     : 패들 방어막 (일정 시간)
    · paddleWide : 패들 너비 확장 (일정 시간)
    · multiball  : 현재 공 각각에서 ±30° 복사본 2개 생성 (분열)
    · speedUp    : 공 속도 20% 즉시 증가
@@ -631,7 +646,6 @@ Block._img = null;
 ============================================================ */
 const ITEM_INFO = {
     extraBall:  { label: '+B',  color: '#f7d716' },
-    shield:     { label: 'SH',  color: '#00b4d8' },
     paddleWide: { label: 'PW',  color: '#ff6b35' },
     multiball:  { label: '×3',  color: '#ff6b9d' },
     speedUp:    { label: 'SP↑', color: '#ff4500' },
