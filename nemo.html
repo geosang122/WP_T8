@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>니모를 찾아서 — Deep Ocean Breakout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="nemo.css">
+</head>
+<body>
+
+<!-- =====================================================
+     OCEAN BACKGROUND — 항상 뒤에 렌더링되는 배경 레이어
+
+     [디자인 담당 TODO]
+     · 실제 해저 배경 이미지를 사용하려면 아래 두 가지 중 선택:
+       A) CSS: nemo.css의 .ocean-bg에 background-image: url('assets/bg-ocean.jpg') 추가
+       B) JS : nemo-game.js Game._draw() 첫 줄에
+               ctx.drawImage(bgImg, 0, 0, CW, CH) 추가 (이미지 미리 로드 필요)
+===================================================== -->
+<div class="ocean-bg">
+    <div class="water-layer layer-1"></div>
+    <div class="water-layer layer-2"></div>
+    <div class="light-rays"></div>
+    <div class="caustics"></div>
+    <div class="bubbles-container">
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
+    </div>
+</div>
+
+<!-- =====================================================
+     GAME WRAPPER — CSS transform:scale() 반응형 루트
+     [다른 화면 미리보기: 해당 screen에 class="screen active" 지정]
+===================================================== -->
+<div class="game-wrapper" id="gameWrapper">
+
+    <!-- ================================================
+         SCREEN 1: LOBBY (메인 메뉴)
+    ================================================ -->
+    <div class="screen active" id="screenLobby">
+        <!-- 배경 장식 물고기 -->
+        <div class="deco-fish fish-a">🐠</div>
+        <div class="deco-fish fish-b">🐟</div>
+        <div class="deco-fish fish-c">🐡</div>
+        <div class="deco-fish fish-d">🦀</div>
+        <div class="deco-fish fish-e">🐙</div>
+
+        <div class="lobby-content">
+            <!-- 타이틀 영역 -->
+            <div class="title-area">
+                <div class="title-badge">건국대학교 웹 프로그래밍 팀 프로젝트</div>
+                <h1 class="game-title">
+                    <span class="title-ko">니모를 찾아서</span>
+                    <span class="title-en">Deep Ocean Breakout</span>
+                </h1>
+                <p class="title-tagline">심해 속으로의 모험이 시작됩니다</p>
+            </div>
+
+            <!-- 메인 네비게이션 버튼 -->
+            <nav class="lobby-nav">
+                <button class="btn btn-primary" id="btnStart">
+                    <span class="btn-ico">▶</span>게임 시작
+                </button>
+                <button class="btn btn-ghost" id="btnSettings">
+                    <span class="btn-ico">⚙</span>설&nbsp;&nbsp;정
+                </button>
+                <button class="btn btn-ghost" id="btnCredits">
+                    <span class="btn-ico">◈</span>크레딧
+                </button>
+            </nav>
+        </div>
+
+        <!-- 해저 바닥 장식 -->
+        <div class="seabed">
+            <span class="sb-item">🪸</span>
+            <span class="sb-item">🌿</span>
+            <span class="sb-item">🪸</span>
+            <span class="sb-item">⭐</span>
+            <span class="sb-item">🌿</span>
+            <span class="sb-item">🪸</span>
+            <span class="sb-item">🌿</span>
+            <span class="sb-item">🪸</span>
+        </div>
+    </div>
+
+    <!-- ================================================
+         SCREEN 2: STAGE SELECT (스테이지 선택)
+    ================================================ -->
+    <div class="screen" id="screenStages">
+        <div class="screen-topbar">
+            <button class="btn-nav" id="btnBackLobby">← 뒤로</button>
+            <h2 class="screen-heading">스테이지 선택</h2>
+            <div class="topbar-spacer"></div>
+        </div>
+
+        <div class="stages-grid">
+
+            <!-- Stage 1 -->
+            <div class="stage-card" data-stage="1">
+                <div class="stage-num-badge">STAGE 1</div>
+                <div class="stage-artwork art-1">
+                    <span class="stage-emoji">🐠</span>
+                    <div class="art-glow glow-blue"></div>
+                </div>
+                <div class="stage-info">
+                    <h3 class="stage-name-ko">조력자 구출</h3>
+                    <p class="stage-name-en">Rescue Dory</p>
+                    <div class="diff-row">
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-pip"></span>
+                        <span class="diff-pip"></span>
+                        <span class="diff-label">입문</span>
+                    </div>
+                    <p class="stage-desc">잊어버리기 잘하는 파란 물고기 도리를<br>찾아 구출하라!</p>
+                </div>
+                <button class="btn btn-stage">시작하기</button>
+            </div>
+
+            <!-- Stage 2 -->
+            <div class="stage-card" data-stage="2">
+                <div class="stage-num-badge badge-danger">STAGE 2</div>
+                <div class="stage-artwork art-2">
+                    <span class="stage-emoji">🦈</span>
+                    <div class="art-glow glow-red"></div>
+                </div>
+                <div class="stage-info">
+                    <h3 class="stage-name-ko">상어의 위협</h3>
+                    <p class="stage-name-en">Shark Escape</p>
+                    <div class="diff-row">
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-pip"></span>
+                        <span class="diff-label">보통</span>
+                    </div>
+                    <p class="stage-desc">브루스의 날카로운 이빨을 피해<br>탈출하라!</p>
+                </div>
+                <button class="btn btn-stage">시작하기</button>
+            </div>
+
+            <!-- Stage 3 (잠김) -->
+            <div class="stage-card stage-locked" data-stage="3">
+                <div class="stage-num-badge badge-final">STAGE 3</div>
+                <div class="stage-artwork art-3">
+                    <span class="stage-emoji">🐟</span>
+                    <div class="art-glow glow-gold"></div>
+                    <div class="lock-overlay">
+                        <span class="lock-ico">🔒</span>
+                        <p class="lock-msg">STAGE 2 클리어 필요</p>
+                    </div>
+                </div>
+                <div class="stage-info">
+                    <h3 class="stage-name-ko">니모 구하기</h3>
+                    <p class="stage-name-en">Save Nemo</p>
+                    <div class="diff-row">
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-pip filled"></span>
+                        <span class="diff-label">어려움</span>
+                    </div>
+                    <p class="stage-desc">최후의 결전! 니모를 찾아<br>집으로 돌아가자</p>
+                </div>
+                <button class="btn btn-stage" disabled>잠금 해제 필요</button>
+            </div>
+
+        </div><!-- /.stages-grid -->
+    </div>
+
+    <!-- ================================================
+         SCREEN 3: VISUAL NOVEL DIALOG (스토리 대화창)
+    ================================================ -->
+    <div class="screen" id="screenDialog">
+        <div class="vn-scene">
+            <!-- 스테이지 레이블 -->
+            <div class="vn-stage-tag glass-micro">STAGE 1 &nbsp;—&nbsp; 조력자 구출</div>
+
+            <!-- 스킵 버튼 (상단 우측) -->
+            <button class="vn-skip-btn" id="btnVnSkip">건너뛰기 ✕</button>
+
+            <!-- 캐릭터 좌측 (도리)
+                 [디자인 담당 TODO] 이모지 대신 실제 스프라이트 사용 시:
+                 <div class="vn-sprite">🐠</div> 를
+                 <img src="assets/char-dory.png" alt="도리" class="vn-sprite-img"> 로 교체
+                 (nemo.css에 .vn-sprite-img { width: 130px; height: auto; } 추가) -->
+            <div class="vn-char vn-char-left active" id="vnCharLeft">
+                <div class="vn-sprite">🐠</div>
+                <div class="vn-char-glow"></div>
+            </div>
+
+            <!-- 캐릭터 우측 (말린)
+                 [디자인 담당 TODO] 이모지 대신 실제 스프라이트 사용 시:
+                 <div class="vn-sprite">🐟</div> 를
+                 <img src="assets/char-marlin.png" alt="말린" class="vn-sprite-img"> 로 교체 -->
+            <div class="vn-char vn-char-right" id="vnCharRight">
+                <div class="vn-sprite">🐟</div>
+                <div class="vn-char-glow"></div>
+            </div>
+
+            <!-- 대화창 (하단) -->
+            <div class="vn-dialog-container">
+                <div class="vn-dialog glass-panel">
+                    <div class="vn-name-tag" id="vnNameTag">도 리</div>
+                    <div class="vn-text-wrap">
+                        <p class="vn-text" id="vnText">
+                            어... 저 여기가 어딘지 기억이 안 나요.
+                            도와주실 수 있나요? 벽돌들을 부숴서 저를 구해주세요!
+                        </p>
+                        <span class="vn-cursor"></span>
+                    </div>
+                    <div class="vn-controls">
+                        <div class="vn-portrait-area"></div>
+                        <button class="vn-btn-next" id="btnVnNext">
+                            다 음 <span class="next-tri">▶</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================
+         SCREEN 4: GAMEPLAY (게임 플레이 화면)
+    ================================================ -->
+    <div class="screen" id="screenGame">
+
+        <!-- HUD 바 -->
+        <div class="game-hud glass-hud">
+            <!-- 좌측: 생명력 -->
+            <div class="hud-block hud-lives">
+                <span class="hud-label">LIVES</span>
+                <div class="hearts">
+                    <span class="heart on">♥</span>
+                    <span class="heart on">♥</span>
+                    <span class="heart on">♥</span>
+                </div>
+            </div>
+
+            <!-- 중앙: 스테이지 + 점수 -->
+            <div class="hud-block hud-center-group">
+                <div class="hud-center-item">
+                    <span class="hud-label">STAGE</span>
+                    <span class="hud-val hud-stage-val" id="hudStageNum">01</span>
+                </div>
+                <div class="hud-divider"></div>
+                <!-- 점수 패널 (강조 카드 디자인) -->
+                <div class="hud-center-item hud-score-panel">
+                    <span class="hud-label hud-score-label">SCORE</span>
+                    <span class="hud-val hud-score-val" id="hudScoreNum">000000</span>
+                </div>
+            </div>
+
+            <!-- 우측: 타이머 + 버튼 -->
+            <div class="hud-block hud-right-group">
+                <div class="hud-timer-block">
+                    <span class="hud-label">TIME</span>
+                    <span class="hud-val hud-time-val" id="hudTimerNum">60</span>
+                </div>
+                <button class="btn-hud" id="btnPause" title="일시정지 (P)">⏸</button>
+                <button class="btn-hud" id="btnHudSetting" title="설정">⚙</button>
+            </div>
+        </div>
+
+        <!-- 캔버스 영역
+             [디자인 담당 TODO] 게임 캔버스 배경 이미지는 JS에서 처리:
+             nemo-game.js Game._draw() 내 배경 그라데이션 부분을
+             ctx.drawImage(bgImg, 0, 0, CW, CH) 로 교체하거나 중첩 가능 -->
+        <div class="canvas-area">
+            <canvas class="game-canvas" id="gameCanvas" width="1100" height="650"></canvas>
+            <!-- 게임 시작 전 플레이스홀더 -->
+            <div class="canvas-placeholder" id="canvasPlaceholder">
+                <div class="ph-inner">
+                    <div class="ph-fish">🐠</div>
+                    <p class="ph-title">Game Canvas</p>
+                    <p class="ph-hint">게임 로직이 여기에 렌더링됩니다</p>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /#screenGame -->
+
+</div><!-- /.game-wrapper -->
+
+
+<!-- =====================================================
+     MODAL: SETTINGS (설정)
+     [기본: hidden — JS에서 toggle]
+===================================================== -->
+<div class="modal-overlay hidden" id="modalSettings">
+    <div class="modal-panel glass-panel">
+        <div class="modal-header">
+            <div class="modal-title-row">
+                <span class="modal-ico">⚙</span>
+                <h3 class="modal-title">게임 설정</h3>
+            </div>
+            <button class="btn-modal-close" id="btnCloseSettings">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="settings-list">
+
+                <!-- BGM -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">🎵</span>
+                        <div class="set-text">
+                            <span class="set-name">배경음악 (BGM)</span>
+                            <span class="set-desc">게임 배경 음악 재생</span>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn on" data-group="bgm" data-val="on">ON</button>
+                        <button class="toggle-btn" data-group="bgm" data-val="off">OFF</button>
+                    </div>
+                </div>
+
+                <!-- SFX -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">🔊</span>
+                        <div class="set-text">
+                            <span class="set-name">효과음 (SFX)</span>
+                            <span class="set-desc">버튼·충돌 효과음</span>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn on" data-group="sfx" data-val="on">ON</button>
+                        <button class="toggle-btn" data-group="sfx" data-val="off">OFF</button>
+                    </div>
+                </div>
+
+                <!-- Ball Color -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">🎱</span>
+                        <div class="set-text">
+                            <span class="set-name">공 색상</span>
+                            <span class="set-desc">게임 공 색상 선택</span>
+                        </div>
+                    </div>
+                    <div class="color-swatches">
+                        <button class="swatch selected" style="--sc:#ff6b35" title="니모 오렌지"></button>
+                        <button class="swatch" style="--sc:#00b4d8" title="도리 시안"></button>
+                        <button class="swatch" style="--sc:#f7d716" title="선빛 옐로우"></button>
+                        <button class="swatch" style="--sc:#c77dff" title="심해 퍼플"></button>
+                        <button class="swatch" style="--sc:#ff6b9d" title="산호 핑크"></button>
+                    </div>
+                </div>
+
+                <!-- Text Size -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">📝</span>
+                        <div class="set-text">
+                            <span class="set-name">텍스트 크기</span>
+                            <span class="set-desc">대화창 폰트 크기</span>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn" data-group="textsize" data-val="sm">소</button>
+                        <button class="toggle-btn on" data-group="textsize" data-val="md">중</button>
+                        <button class="toggle-btn" data-group="textsize" data-val="lg">대</button>
+                    </div>
+                </div>
+
+                <!-- Background Theme -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">🌊</span>
+                        <div class="set-text">
+                            <span class="set-name">배경 테마</span>
+                            <span class="set-desc">게임 배경 테마 선택</span>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn on" data-group="theme" data-val="deep">심해</button>
+                        <button class="toggle-btn" data-group="theme" data-val="coral">산호초</button>
+                        <button class="toggle-btn" data-group="theme" data-val="night">야간</button>
+                    </div>
+                </div>
+
+                <!-- Game Speed -->
+                <div class="setting-row">
+                    <div class="setting-meta">
+                        <span class="set-ico">⚡</span>
+                        <div class="set-text">
+                            <span class="set-name">게임 속도</span>
+                            <span class="set-desc">공과 블록의 이동 속도</span>
+                        </div>
+                    </div>
+                    <div class="toggle-group">
+                        <button class="toggle-btn on" data-group="speed" data-val="1x">1x</button>
+                        <button class="toggle-btn" data-group="speed" data-val="1.2x">1.2x</button>
+                        <button class="toggle-btn" data-group="speed" data-val="1.4x">1.4x</button>
+                    </div>
+                </div>
+
+            </div><!-- /.settings-list -->
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-ghost-sm" id="btnResetSettings">초기화</button>
+            <button class="btn btn-primary-sm" id="btnSaveSettings">저장하기</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =====================================================
+     MODAL: CREDITS (크레딧)
+===================================================== -->
+<div class="modal-overlay hidden" id="modalCredits">
+    <div class="modal-panel glass-panel modal-credits">
+        <div class="modal-header">
+            <div class="modal-title-row">
+                <span class="modal-ico">◈</span>
+                <h3 class="modal-title">크 레 딧</h3>
+            </div>
+            <button class="btn-modal-close" id="btnCloseCredits">✕</button>
+        </div>
+
+        <div class="modal-body credits-body">
+            <div class="credits-hero">
+                <p class="credits-emoji">🐠 🦈 🐟</p>
+                <p class="credits-game-title">니모를 찾아서</p>
+                <p class="credits-game-sub">Deep Ocean Breakout</p>
+            </div>
+
+            <div class="credits-divider"></div>
+
+            <p class="credits-univ">2024 건국대학교 웹 프로그래밍 팀 프로젝트</p>
+
+            <div class="credits-team">
+                <div class="credit-row">
+                    <span class="c-role">Team Lead / Dev</span>
+                    <span class="c-name">팀원 A</span>
+                </div>
+                <div class="credit-row">
+                    <span class="c-role">UI / Design</span>
+                    <span class="c-name">팀원 B</span>
+                </div>
+                <div class="credit-row">
+                    <span class="c-role">Game Logic</span>
+                    <span class="c-name">팀원 C</span>
+                </div>
+                <div class="credit-row">
+                    <span class="c-role">QA / Sound</span>
+                    <span class="c-name">팀원 D</span>
+                </div>
+            </div>
+
+            <div class="credits-divider"></div>
+
+            <p class="credits-legal">
+                Based on "Finding Nemo" © Pixar Animation Studios / Walt Disney Pictures<br>
+                본 게임은 비상업적 학업 프로젝트입니다.
+            </p>
+        </div>
+    </div>
+</div>
+
+
+<!--
+    스크립트 로드 순서 (의존 관계상 순서 변경 금지)
+    1. nemo-story.js   : 스토리 팀원 담당  — DIALOGUE 데이터, DialogueManager
+    2. nemo-objects.js : 구현 팀원 A 담당  — AudioManager, Ball, Paddle, Block, Item, Particle
+    3. nemo-game.js    : 구현 팀원 B 담당  — Shark, Dory, A*, Game 컨트롤러, 부트스트랩
+    (nemo.html / nemo.css 는 디자인 팀원 담당)
+-->
+<script src="nemo-story.js"></script>
+<script src="nemo-objects.js"></script>
+<script src="nemo-game.js"></script>
+</body>
+</html>

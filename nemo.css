@@ -1,0 +1,972 @@
+/* ================================================================
+   NEMO: DEEP OCEAN BREAKOUT — Main Stylesheet
+   nemo.css  |  건국대학교 웹 프로그래밍 팀 프로젝트
+================================================================ */
+
+/* ── 1. RESET & CSS VARIABLES ─────────────────────────────── */
+*, *::before, *::after {
+    margin: 0; padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* ── Ocean Palette ── */
+    --deep-black:    #020810;
+    --deep-navy:     #050d1a;
+    --ocean-mid:     #091628;
+    --ocean-surface: #0d2240;
+    --ocean-teal:    #0a3d5e;
+
+    /* ── Accent ── */
+    --nemo:         #ff6b35;
+    --nemo-lt:      #ff8c55;
+    --nemo-glow:    rgba(255, 107, 53, 0.5);
+    --dory:         #00b4d8;
+    --dory-lt:      #90e0ef;
+    --sunlight:     #f7d716;
+    --coral-red:    #ef233c;
+    --pearl:        rgba(255,255,255,0.92);
+
+    /* ── Glass Morphism ── */
+    --glass-bg:     rgba(255, 255, 255, 0.07);
+    --glass-bg-md:  rgba(255, 255, 255, 0.11);
+    --glass-border: rgba(255, 255, 255, 0.18);
+    --glass-blur:   blur(16px);
+    --glass-shadow: 0 8px 32px rgba(0,15,40,0.55), 0 0 0 1px rgba(255,255,255,0.05);
+
+    /* ── Typography ── */
+    --font-kr:    'Noto Sans KR', sans-serif;
+    --font-title: 'Orbitron', sans-serif;
+
+    /* ── Layout ── */
+    --game-w: 1100px;
+    --game-h: 720px;
+    --hud-h:  68px;
+
+    /* ── Motion ── */
+    --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* ── Responsive Scale (media query에서 덮어쓰기) ── */
+    --scale: 1;
+}
+
+/* ── 2. BASE ───────────────────────────────────────────────── */
+html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--deep-black);
+    font-family: var(--font-kr);
+    color: #d6eeff;
+    -webkit-font-smoothing: antialiased;
+}
+
+button { cursor: pointer; font-family: var(--font-kr); }
+button:focus-visible { outline: 2px solid var(--nemo); outline-offset: 2px; }
+
+/* ── 3. OCEAN BACKGROUND ──────────────────────────────────── */
+/* [디자인 담당 TODO]
+   실제 해저 이미지 사용 시 아래 background 값 뒤에 추가:
+   background-image: url('assets/bg-ocean.jpg');
+   background-size: cover;
+   background-position: center;                         */
+.ocean-bg {
+    position: fixed; inset: 0; z-index: 0; overflow: hidden;
+    background:
+        radial-gradient(ellipse 80% 50% at 25% 0%,   #0d3a6b 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%,  #0a1f3d 0%, transparent 50%),
+        linear-gradient(180deg, #0a1628 0%, #060e1c 50%, var(--deep-black) 100%);
+}
+
+/* 수평 흐르는 물결 레이어 */
+.water-layer {
+    position: absolute; inset: 0; pointer-events: none;
+}
+.layer-1 {
+    background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        rgba(0,180,240,0.025) 120px,
+        rgba(0,110,200,0.045) 240px,
+        transparent 360px
+    );
+    background-size: 360px 100%;
+    animation: waveFlow1 18s linear infinite;
+}
+.layer-2 {
+    background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        rgba(0,80,160,0.03)  200px,
+        rgba(0,160,220,0.025) 400px,
+        transparent 600px
+    );
+    background-size: 600px 100%;
+    animation: waveFlow2 26s linear infinite reverse;
+    opacity: 0.6;
+}
+
+@keyframes waveFlow1 {
+    from { background-position: 0 0; }
+    to   { background-position: 360px 0; }
+}
+@keyframes waveFlow2 {
+    from { background-position: 0 0; }
+    to   { background-position: 600px 0; }
+}
+
+/* 수면 위 빛기둥 (God Rays) */
+.light-rays {
+    position: absolute; top: -5%; left: -5%; width: 110%; height: 75%;
+    background:
+        linear-gradient(172deg, rgba(0,200,255,0.04) 0%, transparent 45%),
+        linear-gradient(188deg, rgba(0,180,255,0.03) 0%, transparent 40%),
+        linear-gradient(167deg, rgba(100,220,255,0.02) 0%, transparent 35%),
+        linear-gradient(195deg, rgba(50,180,255,0.025) 0%, transparent 38%);
+    transform-origin: top center;
+    animation: raysSway 9s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes raysSway {
+    0%, 100% { transform: rotate(-2deg) skewX(-1deg); opacity: 0.7; }
+    50%       { transform: rotate(2deg)  skewX(1deg);  opacity: 1.0; }
+}
+
+/* 해저 코스틱스 (Caustics) */
+.caustics {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 30%;
+    background:
+        radial-gradient(ellipse 60px 20px at 15% 90%, rgba(0,200,255,0.06) 0%, transparent 100%),
+        radial-gradient(ellipse 40px 14px at 35% 95%, rgba(0,200,255,0.04) 0%, transparent 100%),
+        radial-gradient(ellipse 80px 25px at 55% 88%, rgba(0,200,255,0.05) 0%, transparent 100%),
+        radial-gradient(ellipse 50px 18px at 75% 92%, rgba(0,200,255,0.06) 0%, transparent 100%),
+        radial-gradient(ellipse 35px 12px at 90% 96%, rgba(0,200,255,0.04) 0%, transparent 100%);
+    animation: causticShimmer 5s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+@keyframes causticShimmer {
+    from { opacity: 0.5; transform: scaleX(1); }
+    to   { opacity: 1.0; transform: scaleX(1.06); }
+}
+
+/* ── 4. BUBBLE PARTICLES ───────────────────────────────────── */
+.bubbles-container {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+}
+
+.bubble {
+    position: absolute; bottom: -20px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 32%,
+        rgba(255,255,255,0.5),
+        rgba(150,230,255,0.12) 60%,
+        transparent 100%
+    );
+    border: 1px solid rgba(255,255,255,0.28);
+    animation: bubbleRise linear infinite;
+}
+
+@keyframes bubbleRise {
+    0%   { transform: translateY(0)     translateX(0);    opacity: 0; }
+    8%   { opacity: 0.8; }
+    30%  { transform: translateY(-30vh) translateX(12px); }
+    55%  { transform: translateY(-55vh) translateX(-9px); }
+    80%  { transform: translateY(-80vh) translateX(14px); opacity: 0.5; }
+    100% { transform: translateY(-115vh) translateX(-6px); opacity: 0; }
+}
+
+/* 20개 버블 — 위치·크기·타이밍 개별 지정 */
+.bubble:nth-child(1)  { left:  3%; width:  6px; height:  6px; animation-duration:  9s; animation-delay:  0.0s; }
+.bubble:nth-child(2)  { left:  8%; width: 10px; height: 10px; animation-duration: 11s; animation-delay:  1.5s; }
+.bubble:nth-child(3)  { left: 14%; width:  4px; height:  4px; animation-duration:  8s; animation-delay:  3.2s; }
+.bubble:nth-child(4)  { left: 20%; width:  8px; height:  8px; animation-duration: 13s; animation-delay:  0.7s; }
+.bubble:nth-child(5)  { left: 27%; width:  5px; height:  5px; animation-duration: 10s; animation-delay:  2.1s; }
+.bubble:nth-child(6)  { left: 33%; width: 13px; height: 13px; animation-duration: 15s; animation-delay:  4.4s; }
+.bubble:nth-child(7)  { left: 40%; width:  7px; height:  7px; animation-duration:  9s; animation-delay:  1.0s; }
+.bubble:nth-child(8)  { left: 47%; width:  4px; height:  4px; animation-duration:  7s; animation-delay:  2.6s; }
+.bubble:nth-child(9)  { left: 54%; width:  9px; height:  9px; animation-duration: 12s; animation-delay:  0.3s; }
+.bubble:nth-child(10) { left: 61%; width:  6px; height:  6px; animation-duration: 10s; animation-delay:  3.8s; }
+.bubble:nth-child(11) { left: 68%; width: 11px; height: 11px; animation-duration: 14s; animation-delay:  1.2s; }
+.bubble:nth-child(12) { left: 74%; width:  5px; height:  5px; animation-duration:  8s; animation-delay:  2.4s; }
+.bubble:nth-child(13) { left: 80%; width:  8px; height:  8px; animation-duration: 11s; animation-delay:  0.9s; }
+.bubble:nth-child(14) { left: 87%; width:  4px; height:  4px; animation-duration:  9s; animation-delay:  5.1s; }
+.bubble:nth-child(15) { left: 93%; width:  7px; height:  7px; animation-duration: 12s; animation-delay:  1.6s; }
+.bubble:nth-child(16) { left: 11%; width: 15px; height: 15px; animation-duration: 17s; animation-delay:  6.0s; }
+.bubble:nth-child(17) { left: 36%; width:  3px; height:  3px; animation-duration:  7s; animation-delay:  3.0s; }
+.bubble:nth-child(18) { left: 58%; width: 10px; height: 10px; animation-duration: 13s; animation-delay:  7.0s; }
+.bubble:nth-child(19) { left: 71%; width:  6px; height:  6px; animation-duration:  9s; animation-delay:  2.3s; }
+.bubble:nth-child(20) { left: 91%; width:  8px; height:  8px; animation-duration: 11s; animation-delay:  4.5s; }
+
+/* ── 5. GAME WRAPPER & RESPONSIVE SCALE ────────────────────── */
+.game-wrapper {
+    position: fixed;
+    top: 50%; left: 50%;
+    width: var(--game-w);
+    height: var(--game-h);
+    transform: translate(-50%, -50%) scale(var(--scale));
+    transform-origin: center center;
+    transition: transform 0.35s var(--ease-out);
+    z-index: 10;
+    overflow: hidden;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0a1a30 0%, #050e1d 100%);
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 40px 90px rgba(0,0,0,0.7),
+        0 0 100px rgba(0,80,180,0.2);
+}
+
+/* 반응형 스케일 브레이크포인트 */
+@media (max-width: 1200px) { :root { --scale: 0.95; } }
+@media (max-width: 1140px) { :root { --scale: 0.90; } }
+@media (max-width: 1060px) { :root { --scale: 0.84; } }
+@media (max-width: 990px)  { :root { --scale: 0.78; } }
+@media (max-width: 920px)  { :root { --scale: 0.72; } }
+@media (max-width: 860px)  { :root { --scale: 0.66; } }
+@media (max-width: 800px)  { :root { --scale: 0.60; } }
+@media (max-height: 730px) and (min-width: 1101px) { :root { --scale: 0.92; } }
+@media (max-height: 660px) { :root { --scale: 0.80; } }
+@media (max-height: 600px) { :root { --scale: 0.70; } }
+
+/* ── 6. SCREEN SYSTEM ─────────────────────────────────────── */
+.screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.45s var(--ease-out);
+}
+.screen.active {
+    opacity: 1; pointer-events: auto;
+}
+
+/* ── 7. GLASSMORPHISM UTILITY ─────────────────────────────── */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 16px;
+}
+.glass-hud {
+    background: rgba(4, 12, 28, 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.09);
+}
+.glass-micro {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+}
+
+/* ── 8. BUTTON SYSTEM ────────────────────────────────────────
+   Rule: 모든 버튼 호버 시 오렌지 포인트 + scale 업
+─────────────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 36px;
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.05em;
+    text-decoration: none; color: var(--pearl);
+    background: var(--glass-bg);
+    transition: all 0.25s var(--ease-bounce);
+    position: relative; overflow: hidden;
+}
+.btn::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent);
+    opacity: 0; transition: opacity 0.2s;
+}
+.btn:hover::before { opacity: 1; }
+
+.btn-primary {
+    background: linear-gradient(135deg, #e85c2a 0%, #ff7a42 100%);
+    border-color: rgba(255,130,80,0.5);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(140,45,12,0.3);
+}
+.btn-primary:hover {
+    background: linear-gradient(135deg, #ff7a42 0%, #ff9a62 100%);
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 8px 20px rgba(140,45,12,0.38);
+}
+.btn-primary:active { transform: translateY(-1px) scale(1.01); }
+
+.btn-ghost {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.2);
+}
+.btn-ghost:hover {
+    background: rgba(255,107,53,0.12);
+    border-color: var(--nemo);
+    color: var(--nemo);
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 4px 12px rgba(130,40,10,0.18);
+}
+
+.btn-stage {
+    width: 100%; padding: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.8);
+    transition: all 0.25s var(--ease-bounce);
+}
+.btn-stage:hover:not(:disabled) {
+    background: rgba(255,107,53,0.15);
+    border-color: var(--nemo);
+    color: var(--nemo);
+    transform: scale(1.03);
+    box-shadow: 0 3px 10px rgba(130,40,10,0.2);
+}
+.btn-stage:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary-sm {
+    padding: 9px 22px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--nemo); border: none; color: #fff;
+    transition: all 0.2s var(--ease-bounce);
+}
+.btn-primary-sm:hover { background: var(--nemo-lt); transform: scale(1.05); }
+
+.btn-ghost-sm {
+    padding: 9px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6);
+    transition: all 0.2s var(--ease-bounce);
+}
+.btn-ghost-sm:hover { border-color: var(--nemo); color: var(--nemo); transform: scale(1.05); }
+
+.btn-ico { font-size: 15px; }
+
+/* ── 9. LOBBY SCREEN ──────────────────────────────────────── */
+#screenLobby {
+    justify-content: center; align-items: center;
+    position: relative;
+}
+
+/* 배경 장식 물고기 */
+.deco-fish {
+    position: absolute; font-size: 50px;
+    filter: drop-shadow(0 2px 5px rgba(0,30,70,0.3));
+    animation: fishFloat 5s ease-in-out infinite;
+    opacity: 0.22; pointer-events: none; user-select: none;
+}
+.fish-a { top: 12%;  left: 5%;  animation-delay: 0s;    animation-duration: 5.5s; font-size: 60px; }
+.fish-b { top: 20%;  right: 6%; animation-delay: 1.2s;  animation-duration: 6.5s; font-size: 40px; }
+.fish-c { bottom: 25%; left: 8%; animation-delay: 2.4s; animation-duration: 4.8s; }
+.fish-d { bottom: 20%; right: 5%; animation-delay: 0.7s; animation-duration: 7s; font-size: 45px; }
+.fish-e { top: 55%;  left: 3%;  animation-delay: 3.0s;  animation-duration: 5.2s; font-size: 38px; }
+
+@keyframes fishFloat {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50%       { transform: translateY(-18px) rotate(4deg); }
+}
+
+.lobby-content {
+    display: flex; flex-direction: column; align-items: center; gap: 40px;
+    animation: fadeUp 1s var(--ease-out) 0.1s both;
+}
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(36px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 타이틀 */
+.title-area { text-align: center; }
+.title-badge {
+    display: inline-block;
+    padding: 5px 16px; border-radius: 20px;
+    background: rgba(0,180,216,0.15); border: 1px solid rgba(0,180,216,0.3);
+    font-size: 12px; font-weight: 500; letter-spacing: 0.1em;
+    color: var(--dory-lt); margin-bottom: 24px;
+}
+
+.game-title {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    line-height: 1.1;
+}
+.title-ko {
+    font-family: var(--font-kr); font-size: 72px; font-weight: 900;
+    background: linear-gradient(135deg, #d95a28 0%, #ff8c55 55%, #c04020 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 6px rgba(120,40,15,0.3));
+    letter-spacing: -0.02em;
+}
+.title-en {
+    font-family: var(--font-title); font-size: 22px; font-weight: 400;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: rgba(144, 224, 239, 0.75);
+    text-shadow: 0 1px 4px rgba(0,50,100,0.4);
+}
+@keyframes shimmer {
+    from { background-position: 0% center; }
+    to   { background-position: 200% center; }
+}
+
+.title-tagline {
+    margin-top: 14px; font-size: 14px; font-weight: 300;
+    letter-spacing: 0.15em; color: rgba(200, 230, 255, 0.55);
+}
+
+/* 로비 버튼 */
+.lobby-nav {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    width: 300px;
+}
+.lobby-nav .btn { width: 100%; justify-content: center; font-size: 16px; }
+
+/* 해저 장식 */
+.seabed {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    display: flex; justify-content: space-around; align-items: flex-end;
+    padding: 0 40px 12px;
+    pointer-events: none;
+}
+.sb-item { font-size: 28px; opacity: 0.35; animation: sbBob 4s ease-in-out infinite; }
+.sb-item:nth-child(2n) { animation-delay: 1s; animation-duration: 5s; }
+.sb-item:nth-child(3n) { animation-delay: 2s; animation-duration: 3.5s; }
+@keyframes sbBob {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-6px); }
+}
+
+/* ── 10. STAGE SELECT SCREEN ──────────────────────────────── */
+#screenStages {
+    padding: 24px 40px 32px;
+    gap: 20px;
+}
+
+.screen-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+}
+.screen-heading {
+    font-family: var(--font-title); font-size: 22px; font-weight: 700;
+    letter-spacing: 0.15em; color: var(--dory-lt);
+    text-shadow: 0 1px 3px rgba(0,40,80,0.35);
+}
+.topbar-spacer { width: 80px; }
+
+.btn-nav {
+    padding: 8px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.75);
+    transition: all 0.2s var(--ease-bounce);
+}
+.btn-nav:hover {
+    background: rgba(255,107,53,0.15); border-color: var(--nemo);
+    color: var(--nemo); transform: scale(1.06);
+}
+
+/* Stage Cards Grid */
+.stages-grid {
+    display: flex; gap: 24px; flex: 1; align-items: center;
+}
+
+.stage-card {
+    flex: 1; display: flex; flex-direction: column;
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    overflow: hidden;
+    transition: transform 0.3s var(--ease-bounce), box-shadow 0.3s ease;
+    animation: cardReveal 0.6s var(--ease-out) both;
+}
+.stage-card:nth-child(1) { animation-delay: 0.05s; }
+.stage-card:nth-child(2) { animation-delay: 0.15s; }
+.stage-card:nth-child(3) { animation-delay: 0.25s; }
+@keyframes cardReveal {
+    from { opacity: 0; transform: translateY(28px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.stage-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 24px 50px rgba(0,0,0,0.45), 0 0 30px rgba(0,180,216,0.15);
+}
+.stage-locked { opacity: 0.7; }
+.stage-locked:hover { transform: none; }
+
+/* Stage Number Badge */
+.stage-num-badge {
+    padding: 10px 20px;
+    font-family: var(--font-title); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.18em;
+    background: rgba(0,180,216,0.15); color: var(--dory-lt);
+    border-bottom: 1px solid rgba(0,180,216,0.15);
+}
+.badge-danger {
+    background: rgba(239,35,60,0.15); color: #ff8096;
+    border-bottom-color: rgba(239,35,60,0.15);
+}
+.badge-final {
+    background: rgba(247,215,22,0.12); color: #f7e57a;
+    border-bottom-color: rgba(247,215,22,0.12);
+}
+
+/* Stage Artwork */
+/* [디자인 담당 TODO] 스테이지 카드 아트워크 이미지 교체:
+   .art-1 { background-image: url('assets/stage1-thumb.jpg'); background-size: cover; }
+   .art-2 { background-image: url('assets/stage2-thumb.jpg'); background-size: cover; }
+   .art-3 { background-image: url('assets/stage3-thumb.jpg'); background-size: cover; } */
+.stage-artwork {
+    position: relative; height: 130px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+}
+.art-1 { background: linear-gradient(145deg, #023e8a 0%, #0096c7 100%); }
+.art-2 { background: linear-gradient(145deg, #2d0a0a 0%, #7b0000 100%); }
+.art-3 { background: linear-gradient(145deg, #3d1a00 0%, #7b3a00 100%); }
+
+.stage-emoji {
+    font-size: 72px; z-index: 2; position: relative;
+    filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5));
+    animation: emojiFloat 3s ease-in-out infinite;
+}
+@keyframes emojiFloat {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%       { transform: translateY(-8px) scale(1.04); }
+}
+
+.art-glow {
+    position: absolute; inset: 0; z-index: 1;
+    animation: artGlowPulse 3s ease-in-out infinite;
+}
+.glow-blue  { background: radial-gradient(circle at center, rgba(0,180,216,0.35), transparent 65%); }
+.glow-red   { background: radial-gradient(circle at center, rgba(239,35,60,0.35),  transparent 65%); }
+.glow-gold  { background: radial-gradient(circle at center, rgba(247,215,22,0.3),  transparent 65%); }
+@keyframes artGlowPulse {
+    0%, 100% { opacity: 0.6; transform: scale(0.95); }
+    50%       { opacity: 1.0; transform: scale(1.05); }
+}
+
+/* Lock overlay */
+.lock-overlay {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.lock-ico { font-size: 32px; }
+.lock-msg { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); letter-spacing: 0.05em; }
+
+/* Stage Info */
+.stage-info { padding: 16px 18px 12px; flex: 1; }
+.stage-name-ko { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+.stage-name-en { font-size: 12px; font-weight: 400; color: rgba(200,230,255,0.5); margin-bottom: 10px; letter-spacing: 0.1em; }
+
+.diff-row { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; }
+.diff-pip {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
+    transition: background 0.2s;
+}
+.diff-pip.filled { background: var(--nemo); border-color: var(--nemo); }
+.stage-card:nth-child(2) .diff-pip.filled { background: var(--coral-red); border-color: var(--coral-red); }
+.stage-card:nth-child(3) .diff-pip.filled { background: var(--sunlight); border-color: var(--sunlight); }
+.diff-label { font-size: 11px; color: rgba(200,230,255,0.4); margin-left: 4px; letter-spacing: 0.05em; }
+
+.stage-desc { font-size: 12px; font-weight: 300; color: rgba(180,220,255,0.6); line-height: 1.6; }
+
+.stage-card .btn-stage { margin: 0 16px 16px; }
+
+/* ── 11. VISUAL NOVEL DIALOG SCREEN ────────────────────────── */
+#screenDialog { position: relative; }
+
+/* [디자인 담당 TODO] 씬별 배경 이미지 교체:
+   .vn-scene { background-image: url('assets/scene-ocean.jpg'); background-size: cover; }
+   스테이지 전환 시 JS에서 .vn-scene에 클래스를 추가해 배경 교체 가능 */
+.vn-scene {
+    position: relative; width: 100%; height: 100%;
+    background: linear-gradient(180deg, #0b2545 0%, #061428 100%);
+    display: flex; align-items: flex-end;
+}
+.vn-scene::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,150,220,0.08), transparent 60%),
+        repeating-linear-gradient(90deg, transparent 0px, rgba(0,100,200,0.03) 200px, transparent 400px);
+    pointer-events: none;
+}
+
+.vn-stage-tag {
+    position: absolute; top: 18px; left: 18px;
+    padding: 6px 16px; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.12em; color: rgba(200,230,255,0.75);
+    z-index: 5;
+}
+
+.vn-skip-btn {
+    position: absolute; top: 14px; right: 18px; z-index: 5;
+    padding: 7px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.55);
+    transition: all 0.2s ease;
+}
+.vn-skip-btn:hover { background: rgba(255,107,53,0.15); border-color: var(--nemo); color: var(--nemo); }
+
+/* Characters */
+.vn-char {
+    position: absolute; bottom: 165px;
+    display: flex; flex-direction: column; align-items: center;
+    transition: all 0.5s var(--ease-out);
+}
+.vn-char-left  { left: 80px; }
+.vn-char-right { right: 80px; }
+
+.vn-sprite {
+    font-size: 130px; display: block;
+    filter: brightness(0.5) saturate(0.5) drop-shadow(0 10px 25px rgba(0,0,0,0.6));
+    transition: all 0.4s ease;
+}
+.vn-char.active .vn-sprite {
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.55)) drop-shadow(0 0 8px rgba(0,70,110,0.2));
+    animation: charBreath 3.5s ease-in-out infinite;
+}
+@keyframes charBreath {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-10px); }
+}
+
+.vn-char-glow {
+    width: 80px; height: 20px; margin-top: 8px; border-radius: 50%;
+    background: rgba(0,180,216,0.3);
+    filter: blur(8px);
+    transition: opacity 0.4s;
+}
+.vn-char:not(.active) .vn-char-glow { opacity: 0; }
+
+/* Dialog Box */
+.vn-dialog-container {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    padding: 0 24px 20px; z-index: 4;
+}
+
+.vn-dialog {
+    position: relative; width: 100%; padding: 28px 30px 20px;
+    border-radius: 16px;
+}
+.vn-name-tag {
+    position: absolute; top: -18px; left: 28px;
+    padding: 5px 20px 5px 16px; border-radius: 8px 8px 0 0;
+    background: rgba(0,180,216,0.25);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0,180,216,0.35); border-bottom: none;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.12em;
+    color: var(--dory-lt);
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
+}
+
+.vn-text-wrap {
+    min-height: 64px; line-height: 1.8;
+    font-size: 16px; font-weight: 400; color: rgba(230,245,255,0.9);
+    padding-right: 160px;
+}
+.vn-text { display: inline; }
+.vn-cursor {
+    display: inline-block; width: 2px; height: 1.1em;
+    background: rgba(255,255,255,0.8); vertical-align: text-bottom; margin-left: 2px;
+    animation: cursorBlink 1s step-end infinite;
+}
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+.vn-controls {
+    display: flex; align-items: center; justify-content: flex-end;
+    margin-top: 14px; gap: 12px;
+}
+.vn-btn-next {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 28px; border-radius: 8px;
+    background: rgba(255,107,53,0.2); border: 1px solid rgba(255,107,53,0.4);
+    font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--nemo); cursor: pointer;
+    animation: nextPulse 2s ease-in-out infinite;
+    transition: all 0.2s var(--ease-bounce);
+}
+.vn-btn-next:hover {
+    background: rgba(255,107,53,0.3); transform: scale(1.06);
+    box-shadow: 0 4px 12px rgba(130,40,10,0.25);
+}
+@keyframes nextPulse {
+    0%, 100% { box-shadow: 0 2px 6px rgba(100,35,10,0.15); }
+    50%       { box-shadow: 0 4px 12px rgba(140,50,15,0.25); }
+}
+.next-tri { font-size: 10px; }
+
+/* ── 12. GAME PLAY SCREEN ─────────────────────────────────── */
+#screenGame { flex-direction: column; }
+
+/* HUD */
+.game-hud {
+    height: var(--hud-h); flex-shrink: 0;
+    display: flex; align-items: center;
+    padding: 0 28px; gap: 20px;
+}
+
+.hud-block {
+    display: flex; align-items: center; gap: 10px;
+}
+.hud-label {
+    font-family: var(--font-title); font-size: 9px; font-weight: 600;
+    letter-spacing: 0.18em; color: rgba(150,200,240,0.55);
+    text-transform: uppercase;
+}
+.hud-val {
+    font-family: var(--font-title); font-weight: 700;
+}
+
+/* Lives */
+.hud-lives { gap: 12px; }
+.hearts { display: flex; gap: 5px; }
+.heart {
+    font-size: 22px; color: rgba(255,255,255,0.2);
+    transition: all 0.3s ease; filter: grayscale(1);
+}
+.heart.on {
+    color: #e03255; filter: none;
+    text-shadow: 0 1px 4px rgba(110,15,30,0.4);
+    animation: heartBeat 2s ease-in-out infinite;
+}
+@keyframes heartBeat {
+    0%, 100% { transform: scale(1); }
+    14%       { transform: scale(1.15); }
+    28%       { transform: scale(1); }
+    42%       { transform: scale(1.1); }
+}
+.hud-lives .hud-label { margin-right: 2px; }
+
+/* Center group */
+.hud-center-group {
+    flex: 1; justify-content: center; gap: 32px;
+}
+.hud-center-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.hud-stage-val { font-size: 26px; color: var(--dory-lt); text-shadow: 0 1px 4px rgba(0,35,70,0.35); }
+.hud-divider { width: 1px; height: 36px; background: rgba(255,255,255,0.1); }
+
+/* ── 점수 패널 강조 카드 ── */
+.hud-score-panel {
+    background: rgba(160,120,10,0.08);
+    border: 1px solid rgba(180,140,20,0.2);
+    border-radius: 10px;
+    padding: 4px 16px;
+    gap: 2px;
+}
+.hud-score-label {
+    color: rgba(210,180,70,0.7);
+    letter-spacing: 0.22em;
+}
+.hud-score-val {
+    font-size: 30px;
+    color: var(--sunlight);
+    text-shadow: 0 1px 4px rgba(90,60,0,0.35);
+    letter-spacing: 0.08em;
+}
+
+/* 점수 획득 시 bump 애니메이션 (JS에서 .bump 클래스 일시 부여) */
+@keyframes scoreBump {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.22); color: #fff; text-shadow: 0 2px 8px rgba(130,90,0,0.5); }
+    100% { transform: scale(1); }
+}
+.hud-score-val.bump {
+    animation: scoreBump 0.38s var(--ease-bounce) forwards;
+}
+
+/* Right group */
+.hud-right-group { gap: 14px; }
+.hud-timer-block { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.hud-time-val { font-size: 26px; color: var(--pearl); text-shadow: 0 1px 3px rgba(0,20,50,0.3); }
+
+.btn-hud {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    font-size: 16px; color: rgba(255,255,255,0.65);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s var(--ease-bounce);
+}
+.btn-hud:hover {
+    background: rgba(255,107,53,0.2); border-color: var(--nemo);
+    color: var(--nemo); transform: scale(1.15);
+}
+
+/* Canvas */
+.canvas-area {
+    flex: 1; position: relative; overflow: hidden;
+}
+.game-canvas {
+    display: block; width: 100%; height: 100%;
+    background: linear-gradient(180deg, #0a1e38 0%, #050e1c 100%);
+}
+.canvas-placeholder {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+}
+.ph-inner { text-align: center; }
+.ph-fish { font-size: 64px; animation: emojiFloat 3s ease-in-out infinite; margin-bottom: 12px; opacity: 0.4; }
+.ph-title { font-family: var(--font-title); font-size: 18px; font-weight: 600; color: rgba(150,200,240,0.3); letter-spacing: 0.15em; }
+.ph-hint { font-size: 13px; color: rgba(150,200,240,0.2); margin-top: 6px; }
+
+/* ── 13. MODAL SYSTEM ─────────────────────────────────────── */
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,5,20,0.75);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    animation: overlayIn 0.3s ease;
+}
+.modal-overlay.hidden { display: none; }
+@keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.modal-panel {
+    width: 540px; max-height: 85vh;
+    display: flex; flex-direction: column;
+    animation: panelIn 0.35s var(--ease-bounce);
+}
+@keyframes panelIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 26px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.modal-title-row { display: flex; align-items: center; gap: 10px; }
+.modal-ico { font-size: 20px; }
+.modal-title {
+    font-family: var(--font-title); font-size: 16px; font-weight: 700;
+    letter-spacing: 0.18em; color: var(--dory-lt);
+}
+
+.btn-modal-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    font-size: 14px; color: rgba(255,255,255,0.5);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.22s var(--ease-bounce);
+}
+.btn-modal-close:hover {
+    background: rgba(255,107,53,0.2); border-color: var(--nemo);
+    color: var(--nemo); transform: rotate(90deg) scale(1.15);
+}
+
+.modal-body { padding: 20px 26px; flex: 1; overflow-y: auto; }
+.modal-footer {
+    padding: 16px 26px 22px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex; justify-content: flex-end; gap: 10px;
+}
+
+/* ── 14. SETTINGS MODAL CONTENT ────────────────────────────── */
+.settings-list { display: flex; flex-direction: column; gap: 6px; }
+
+.setting-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: background 0.2s;
+}
+.setting-row:hover { background: rgba(255,255,255,0.07); }
+
+.setting-meta { display: flex; align-items: center; gap: 12px; }
+.set-ico { font-size: 20px; }
+.set-text { display: flex; flex-direction: column; gap: 2px; }
+.set-name { font-size: 14px; font-weight: 600; color: rgba(220,240,255,0.9); }
+.set-desc { font-size: 11px; font-weight: 300; color: rgba(180,210,240,0.45); }
+
+/* Toggle Group */
+.toggle-group {
+    display: flex; gap: 3px;
+    background: rgba(0,0,0,0.35); padding: 3px; border-radius: 9px;
+}
+.toggle-btn {
+    padding: 6px 14px; border-radius: 7px; border: none;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+    background: transparent; color: rgba(200,230,255,0.4);
+    transition: all 0.2s var(--ease-bounce);
+}
+.toggle-btn:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); }
+.toggle-btn.on {
+    background: var(--nemo); color: #fff;
+    box-shadow: 0 2px 10px rgba(255,107,53,0.45);
+}
+
+/* Color Swatches */
+.color-swatches { display: flex; gap: 8px; align-items: center; }
+.swatch {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--sc);
+    border: 2px solid rgba(255,255,255,0.15);
+    transition: all 0.22s var(--ease-bounce);
+    position: relative;
+}
+.swatch:hover { transform: scale(1.25); border-color: rgba(255,255,255,0.6); }
+.swatch.selected {
+    transform: scale(1.2);
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25), 0 0 14px var(--sc);
+}
+.swatch.selected::after {
+    content: '✓'; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 900; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* ── 15. CREDITS MODAL CONTENT ──────────────────────────────── */
+.modal-credits { width: 460px; }
+
+.credits-body { text-align: center; }
+.credits-hero { padding: 10px 0 18px; }
+.credits-emoji { font-size: 36px; letter-spacing: 8px; margin-bottom: 10px; }
+.credits-game-title {
+    font-family: var(--font-kr); font-size: 26px; font-weight: 900;
+    background: linear-gradient(90deg, var(--nemo), var(--nemo-lt));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.credits-game-sub {
+    font-family: var(--font-title); font-size: 12px; font-weight: 400;
+    color: rgba(150,210,240,0.6); letter-spacing: 0.18em; margin-top: 4px;
+}
+
+.credits-divider {
+    width: 60px; height: 1px; margin: 16px auto;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+}
+.credits-univ { font-size: 12px; color: rgba(200,230,255,0.5); margin-bottom: 16px; }
+
+.credits-team { display: flex; flex-direction: column; gap: 8px; }
+.credit-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+}
+.c-role { font-size: 12px; color: rgba(180,210,240,0.5); font-weight: 400; letter-spacing: 0.05em; }
+.c-name { font-size: 14px; font-weight: 700; color: var(--dory-lt); }
+
+.credits-legal {
+    font-size: 11px; font-weight: 300; line-height: 1.7;
+    color: rgba(180,210,240,0.3); margin-top: 6px;
+}
+
+/* ── 16. SCROLLBAR ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(0,180,216,0.3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,180,216,0.5); }
+
+/* ── 17. UTILITIES ────────────────────────────────────────── */
+.hidden { display: none !important; }
