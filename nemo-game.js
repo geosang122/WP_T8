@@ -40,10 +40,12 @@ const LS_KEY = 'nemo_breakout_v1';
 function loadSave()      { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } }
 function writeSave(data) { localStorage.setItem(LS_KEY, JSON.stringify({ ...loadSave(), ...data })); }
 
-const nemoFatherLeftImg  = new Image(); nemoFatherLeftImg.src  = 'assets/images/nemo_father_left.png';
-const nemoFatherRightImg = new Image(); nemoFatherRightImg.src = 'assets/images/nemo_father_right.png';
-
 function _mkImg(src) { const i = new Image(); i.src = src; return i; }
+
+const swingFrames = {
+    left:  Array.from({ length: 7 }, (_, i) => _mkImg(`assets/images/left_swing${i + 1}.png`)),
+    right: Array.from({ length: 7 }, (_, i) => _mkImg(`assets/images/right_swing${i + 1}.png`)),
+};
 const sharkImgs = {
     1: { left: _mkImg('assets/images/shark1_left.png'),  right: _mkImg('assets/images/shark1_right.png') },
     2: { left: _mkImg('assets/images/shark2_left.png'),  right: _mkImg('assets/images/shark2_right.png') },
@@ -55,6 +57,12 @@ const blockImgs = [
     _mkImg('assets/images/block2.png'),
     _mkImg('assets/images/block3.png'),
 ];
+
+const stageBgImgs = {
+    1: _mkImg('assets/images/stage1.png'),
+    2: _mkImg('assets/images/stage2.png'),
+    3: _mkImg('assets/images/stage3.png'),
+};
 
 
 /* ============================================================
@@ -72,9 +80,9 @@ const blockImgs = [
      sharkSpeed : 상어 이동 속도 (shark: true 일 때만 유효)
 ============================================================ */
 const STAGE_CFG = {
-    1: { speed: 5.5, timerSec: null, rows: 7,  cols: 17, shark: false, vortex: false, dorisAI: true,  itemChance: 0.18, sharkSpeed: 2.8 },
-    2: { speed: 7.0, timerSec: 90,   rows: 9,  cols: 19, shark: true,  vortex: false, dorisAI: false, itemChance: 0.22, sharkSpeed: 3.5 },
-    3: { speed: 8.5, timerSec: 60,   rows: 11, cols: 21, shark: true,  vortex: true,  dorisAI: false, itemChance: 0.28, sharkSpeed: 4.0 },
+    1: { speed: 5.5, timerSec: null, rows: 12, cols: 17, shark: false, vortex: false, dorisAI: true,  itemChance: 0.18, sharkSpeed: 2.8 },
+    2: { speed: 7.0, timerSec: 90,   rows: 14, cols: 19, shark: true,  vortex: false, dorisAI: false, itemChance: 0.22, sharkSpeed: 3.5 },
+    3: { speed: 8.5, timerSec: 60,   rows: 16, cols: 21, shark: true,  vortex: true,  dorisAI: false, itemChance: 0.28, sharkSpeed: 4.0 },
 };
 
 /* ── 아이템 풀 (기획 담당: 드롭 아이템 종류 변경 가능) ──────── */
@@ -278,14 +286,6 @@ class Dory {
     }
 
     drawPath(ctx) {
-        for (let r = 0; r < this.grid.rows; r++) {
-            for (let c = 0; c < this.grid.cols; c++) {
-                if (this.grid.grid[r][c] === 1) {
-                    ctx.fillStyle = 'rgba(255,60,60,0.08)';
-                    ctx.fillRect(c * this.grid.cell, r * this.grid.cell, this.grid.cell, this.grid.cell);
-                }
-            }
-        }
         if (this.pathPx.length < 2) return;
         ctx.save();
         ctx.setLineDash([6, 6]);
@@ -349,6 +349,7 @@ class Game {
         this._blocks    = [];
         this._items     = [];
         this._particles = [];
+        this._ripples   = [];
         this._sharks    = [];
         this._dory      = null;
         this._mouseX    = CW / 2;
@@ -387,6 +388,13 @@ class Game {
         });
 
         document.getElementById('btnPause').addEventListener('click', () => this._togglePause());
+        document.getElementById('btnGameLobby').addEventListener('click', () => {
+            if (this._running) {
+                this._running = false;
+                cancelAnimationFrame(this._raf);
+            }
+            showScreen('lobby');
+        });
         document.getElementById('btnHudSetting').addEventListener('click', () => {
             if (this._running) this._togglePause();
             openModal(modalSettings);
@@ -430,20 +438,31 @@ class Game {
             this._mouseX = (e.clientX - rect.left) * (CW / rect.width);
         });
 
-        canvas.addEventListener('click', () => {
-            if (this._running && !this._paused) this._launchBalls();
-        });
 
         document.addEventListener('keydown', e => {
             const gameActive = screenEls.game.classList.contains('active');
 
+            // 키 시각 피드백
+            if (gameActive) {
+                if (e.code === 'ArrowLeft')  document.getElementById('keyLeft')?.classList.add('pressed');
+                if (e.code === 'ArrowRight') document.getElementById('keyRight')?.classList.add('pressed');
+                if (e.code === 'Space')      document.getElementById('keySpace')?.classList.add('pressed');
+            }
+
             if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-                if (gameActive) { e.preventDefault(); this._keysDown[e.code] = true; }
+                if (gameActive) {
+                    e.preventDefault();
+                    this._keysDown[e.code] = true;
+                    this._paddle?.setDirection(e.code === 'ArrowLeft' ? 'left' : 'right');
+                }
                 return;
             }
             if (e.code === 'Space' && gameActive) {
                 e.preventDefault();
-                if (this._running && !this._paused) this._launchBalls();
+                if (this._running && !this._paused) {
+                    if (this._balls.some(b => b.stuck)) this._launchBalls();
+                    else                                this._paddle.triggerSwing();
+                }
                 return;
             }
             if ((e.key === 'p' || e.key === 'P') && gameActive) { this._togglePause(); return; }
@@ -454,8 +473,9 @@ class Game {
         });
 
         document.addEventListener('keyup', e => {
-            if (e.code === 'ArrowLeft' || e.code === 'ArrowRight')
-                this._keysDown[e.code] = false;
+            if (e.code === 'ArrowLeft')  { this._keysDown.ArrowLeft  = false; document.getElementById('keyLeft')?.classList.remove('pressed'); }
+            if (e.code === 'ArrowRight') { this._keysDown.ArrowRight = false; document.getElementById('keyRight')?.classList.remove('pressed'); }
+            if (e.code === 'Space')      document.getElementById('keySpace')?.classList.remove('pressed');
         });
     }
 
@@ -479,6 +499,19 @@ class Game {
         this.dialogue.play(n, () => { showScreen('game'); this._initStage(n); });
     }
 
+    _initSidebar(n) {
+        const goals = {
+            1: { main: '모든 블록을 파괴하세요!', sub: '도리의 경로 가이드를 따라가면 도움이 됩니다.' },
+            2: { main: '90초 안에 모든 블록을 파괴하세요!', sub: '상어 3마리가 공을 방해합니다. 조심하세요!' },
+            3: { main: '60초 안에 모든 블록을 파괴하세요!', sub: '상어 + 소용돌이 블록의 협공을 견뎌내세요!' },
+        };
+        const g  = goals[n];
+        const el = document.getElementById('sidebarGoalText');
+        if (!el || !g) return;
+        el.querySelector('.goal-main').textContent = g.main;
+        el.querySelector('.goal-sub').textContent  = g.sub;
+    }
+
     _initStage(n) {
         const cfg    = STAGE_CFG[n];
         const spdMul = { '1x':1, '1.2x':1.2, '1.4x':1.4 }[this._settings.speed] ?? 1;
@@ -494,6 +527,7 @@ class Game {
         this._clearing = false;
         this._blocksDestroyed = 0;
         this._particles   = [];
+        this._ripples     = [];
         this._items       = [];
         this._scorePopups = [];
         this._shakeFrames = 0;
@@ -526,6 +560,7 @@ class Game {
         }
         if (this._sharks.length) setTimeout(() => this.audio.playSharkAlert(), 800);
 
+        this._initSidebar(n);
         document.getElementById('canvasPlaceholder').style.display = 'none';
         document.getElementById('btnPause').textContent = '⏸';
 
@@ -538,11 +573,11 @@ class Game {
         const scale        = CW / 1100;
         const bottomMargin = Math.round(24 * scale);
         const gap = Math.max(1, Math.round(BASE_BLOCK_GAP * scale));
-        const bw  = Math.round(BASE_BLOCK_W * scale);
+        // 좌우 캔버스 끝에 꽉 붙도록 bw 를 열 수 기준으로 역산
+        const bw  = (CW - (cfg.cols - 1) * gap) / cfg.cols;
         const bh  = Math.round(BASE_BLOCK_H * scale);
-        const totalW = cfg.cols * bw + (cfg.cols - 1) * gap;
         const totalH = cfg.rows * bh + (cfg.rows - 1) * gap;
-        const startX = Math.round((CW - totalW) / 2); // 가운데 정렬
+        const startX = 0; // 왼쪽 캔버스 끝에서 시작
         const startY = CH - bottomMargin - totalH;
         const blocks = [];
 
@@ -626,10 +661,37 @@ class Game {
                 if (!b.stuck) {
                     const side = shark.hitsBall(b);
                     if (side) {
-                        if (side === 'x') b.dx *= -1;
-                        else              b.dy *= -1;
-                        shark.registerHit();
-                        this.audio.playPaddleHit();
+                        if (b.rainbow) {
+                            // 무지개 공: 상어 관통 격침
+                            shark.active    = false;
+                            shark._cooldown = shark._cooldownMin +
+                                Math.floor(Math.random() * (shark._cooldownMax - shark._cooldownMin));
+                            const pts = 500;
+                            this._score += pts;
+                            this._syncHUD(true);
+                            this._saveHigh();
+                            this._scorePopups.push(new ScorePopup(
+                                shark.x + shark.w / 2, shark.y + shark.h / 2, pts
+                            ));
+                            this._particles.push(...spawnParticles(
+                                shark.x + shark.w / 2, shark.y + shark.h / 2, '#ff6b35'
+                            ));
+                            this.audio.playBlockBreak();
+                        } else {
+                            const cx = shark.x + shark.w / 2;
+                            const cy = shark.y + shark.h / 2;
+                            if (side === 'x') {
+                                b.dx *= -1;
+                                const push = shark.w / 2 + b.r - Math.abs(b.x - cx);
+                                b.x += b.x < cx ? -push : push;
+                            } else {
+                                b.dy *= -1;
+                                const push = shark.h / 2 + b.r - Math.abs(b.y - cy);
+                                b.y += b.y < cy ? -push : push;
+                            }
+                            shark.registerHit();
+                            this.audio.playPaddleHit();
+                        }
                     }
                 }
             }
@@ -642,7 +704,16 @@ class Game {
         for (let i = this._balls.length - 1; i >= 0; i--) {
             const b   = this._balls[i];
             const res = b.update(this._paddle, CW, CH);
-            if      (res === 'paddle') { this.audio.playPaddleHit(); this._paddle.onBallHit(); }
+            if (res === 'paddle') {
+                    this.audio.playPaddleHit();
+                    if (this._paddle.isSwinging) {
+                        this.audio.playPowerSwing();
+                        b.rainbow = true;
+                        this._ripples.push({ x: b.x, y: b.y, r: 5,  maxR:  55, life: 1.0, decay: 0.055 });
+                        this._ripples.push({ x: b.x, y: b.y, r: 0,  maxR:  80, life: 1.0, decay: 0.040 });
+                        this._ripples.push({ x: b.x, y: b.y, r: 0,  maxR: 110, life: 1.0, decay: 0.030 });
+                    }
+                }
             else if (res === 'lost') {
                 if (this._balls.length > 1) this._balls.splice(i, 1);
                 else { this._loseLife(); return; }
@@ -656,48 +727,52 @@ class Game {
             for (const ball of this._balls) {
                 if (ball.stuck || !this._collide(ball, block)) continue;
 
-                const hp = block.hit();
-                if (hp > 0) {
-                    // 하드 블록 피격 — 히트스탑 + 약한 화면 흔들림
-                    this.audio.playHardHit();
-                    this._shakeFrames    = Math.max(this._shakeFrames, 4);
-                    this._shakeIntensity = 3;
-                    ball.slowTimer = Math.max(ball.slowTimer, 8); // 8프레임 히트스탑
+                if (ball.rainbow) {
+                    this._rainbowBlockHit(ball, block);
                 } else {
-                    // 블록 파괴
-                    this.audio.playBlockBreak();
-                    this._shakeFrames    = 6;
-                    this._shakeIntensity = 6;
+                    const hp = block.hit();
+                    if (hp > 0) {
+                        // 하드 블록 피격 — 히트스탑 + 약한 화면 흔들림
+                        this.audio.playHardHit();
+                        this._shakeFrames    = Math.max(this._shakeFrames, 4);
+                        this._shakeIntensity = 3;
+                        ball.slowTimer = Math.max(ball.slowTimer, 8); // 8프레임 히트스탑
+                    } else {
+                        // 블록 파괴
+                        this.audio.playBlockBreak();
+                        this._shakeFrames    = 6;
+                        this._shakeIntensity = 6;
 
-                    const pts = block.type === BT.hard ? 300 : block.type === BT.vortex ? 200 : 100;
-                    this._score += pts;
-                    this._syncHUD(true);
-                    this._saveHigh();
+                        const pts = block.type === BT.hard ? 300 : block.type === BT.vortex ? 200 : 100;
+                        this._score += pts;
+                        this._syncHUD(true);
+                        this._saveHigh();
 
-                    this._scorePopups.push(new ScorePopup(
-                        block.x + block.w / 2,
-                        block.y + block.h / 2,
-                        pts
-                    ));
+                        this._scorePopups.push(new ScorePopup(
+                            block.x + block.w / 2,
+                            block.y + block.h / 2,
+                            pts
+                        ));
 
-                    this._particles.push(...spawnParticles(
-                        block.x + block.w / 2, block.y + block.h / 2, block.color
-                    ));
+                        this._particles.push(...spawnParticles(
+                            block.x + block.w / 2, block.y + block.h / 2, block.color
+                        ));
 
-                    if (block._itemType)
-                        this._items.push(new Item(block.x + block.w / 2, block.y + block.h / 2, block._itemType));
+                        if (block._itemType)
+                            this._items.push(new Item(block.x + block.w / 2, block.y + block.h / 2, block._itemType));
 
-                    // 점진적 속도 증가 — 8블록마다 5% 가속, 최대 기본속도의 1.35배
-                    this._blocksDestroyed++;
-                    if (this._blocksDestroyed % 8 === 0) {
-                        const cap = this._baseSpeed * 1.35;
-                        for (const b of this._balls) {
-                            if (b.stuck) continue;
-                            const spd = Math.hypot(b.dx, b.dy);
-                            if (spd > 0 && spd < cap) {
-                                const ns = Math.min(spd + this._baseSpeed * 0.05, cap);
-                                b.dx = (b.dx / spd) * ns;
-                                b.dy = (b.dy / spd) * ns;
+                        // 점진적 속도 증가 — 8블록마다 5% 가속, 최대 기본속도의 1.35배
+                        this._blocksDestroyed++;
+                        if (this._blocksDestroyed % 8 === 0) {
+                            const cap = this._baseSpeed * 1.35;
+                            for (const b of this._balls) {
+                                if (b.stuck) continue;
+                                const spd = Math.hypot(b.dx, b.dy);
+                                if (spd > 0 && spd < cap) {
+                                    const ns = Math.min(spd + this._baseSpeed * 0.05, cap);
+                                    b.dx = (b.dx / spd) * ns;
+                                    b.dy = (b.dy / spd) * ns;
+                                }
                             }
                         }
                     }
@@ -719,6 +794,14 @@ class Game {
         for (let i = this._particles.length - 1; i >= 0; i--) {
             this._particles[i].update();
             if (this._particles[i].dead) this._particles.splice(i, 1);
+        }
+
+        // ── 리플 (물결 이펙트) ──────────────────────────────
+        for (let i = this._ripples.length - 1; i >= 0; i--) {
+            const rp  = this._ripples[i];
+            rp.r     += (rp.maxR - rp.r) * 0.18;
+            rp.life  -= rp.decay;
+            if (rp.life <= 0) this._ripples.splice(i, 1);
         }
 
         // ── 점수 팝업 ───────────────────────────────────────
@@ -813,8 +896,9 @@ class Game {
         if (this._lives <= 0) {
             this._gameOver();
         } else {
-            this._balls = [this._newBall()];
-            this._phase = 'READY';
+            this._balls   = [this._newBall()];
+            this._ripples = [];
+            this._phase   = 'READY';
         }
     }
 
@@ -878,15 +962,17 @@ class Game {
     _draw() {
         ctx.clearRect(0, 0, CW, CH);
 
-        // 배경 (흔들림 없음 — 고정 배경)
-        // [디자인 담당 TODO] 아래 그라데이션을
-        //   ctx.drawImage(bgImg, 0, 0, CW, CH)
-        // 으로 교체하면 실제 배경 이미지 사용 가능 (bgImg는 상단에서 미리 로드)
-        const bg = ctx.createLinearGradient(0, 0, 0, CH);
-        bg.addColorStop(0, '#0a1e38');
-        bg.addColorStop(1, '#050e1c');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, CW, CH);
+        // 배경 — 스테이지별 이미지, 로드 전엔 기본 그라데이션으로 폴백
+        const bgImg = stageBgImgs[this._stage];
+        if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+            ctx.drawImage(bgImg, 0, 0, CW, CH);
+        } else {
+            const bg = ctx.createLinearGradient(0, 0, 0, CH);
+            bg.addColorStop(0, '#0a1e38');
+            bg.addColorStop(1, '#050e1c');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, CW, CH);
+        }
 
         // ── 화면 흔들림 적용 영역 ──────────────────────────
         ctx.save();
@@ -904,6 +990,17 @@ class Game {
         this._items.forEach(it     => it.draw(ctx));
         if (this._dory)  this._dory.draw(ctx);
         this._sharks.forEach(s => s.draw(ctx));
+        this._ripples.forEach(rp => {
+            if (rp.life <= 0) return;
+            ctx.save();
+            ctx.globalAlpha = rp.life * 0.85;
+            ctx.beginPath();
+            ctx.arc(rp.x, rp.y, Math.max(0, rp.r), 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.lineWidth   = 3 * rp.life;
+            ctx.stroke();
+            ctx.restore();
+        });
         this._balls.forEach(b      => b.draw(ctx));
         this._paddle.draw(ctx);
 
@@ -922,6 +1019,29 @@ class Game {
             ctx.restore();
         }
 
+        // ── 파워스윙 상태 표시 ──────────────────────────────
+        if (this._phase === 'PLAYING' && this._paddle) {
+            if (this._paddle.isSwinging) {
+                ctx.save();
+                ctx.fillStyle   = '#f7d716';
+                ctx.font        = 'bold 13px Orbitron, sans-serif';
+                ctx.textAlign   = 'center';
+                ctx.shadowColor = '#ff8c00';
+                ctx.shadowBlur  = 16;
+                ctx.fillText('⚡ POWER SWING!', CW / 2, CH - 82);
+                ctx.restore();
+            } else if (this._paddle.swingReady) {
+                const alpha = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle   = '#f7d716';
+                ctx.font        = 'bold 11px Orbitron, sans-serif';
+                ctx.textAlign   = 'center';
+                ctx.fillText('⚡ POWER SWING [SPACE]', CW / 2, CH - 82);
+                ctx.restore();
+            }
+        }
+
         // ── READY 상태: PRESS SPACE TO START 깜빡임 ────────
         if (this._phase === 'READY' && this._running) {
             const alpha  = Math.sin(Date.now() * 0.004) * 0.45 + 0.55;
@@ -937,6 +1057,8 @@ class Game {
             ctx.fillText('PRESS SPACE TO START', CW / 2, readyY);
             ctx.restore();
         }
+
+        if (this._paddle) this._updateSwingHUD();
     }
 
     // ── HUD 동기화 ───────────────────────────────────────────
@@ -949,6 +1071,82 @@ class Game {
         }
         hudTimerEl.textContent = STAGE_CFG[this._stage].timerSec ? String(this._timer) : '∞';
         heartsEls.forEach((h, i) => h.classList.toggle('on', i < this._lives));
+    }
+
+    _updateSwingHUD() {
+        const badge  = document.getElementById('swingBadge');
+        const cdRow  = document.getElementById('swingCdRow');
+        const cdFill = document.getElementById('swingCdFill');
+        const cdNum  = document.getElementById('swingCdNum');
+        if (!badge) return;
+
+        if (this._paddle.isSwinging) {
+            badge.style.display = 'inline-block';
+            badge.textContent   = '⚡ ACTIVE';
+            badge.className     = 'swing-badge active';
+            cdRow.style.display = 'none';
+        } else if (this._paddle.swingReady) {
+            badge.style.display = 'inline-block';
+            badge.textContent   = '✓ READY';
+            badge.className     = 'swing-badge';
+            cdRow.style.display = 'none';
+        } else {
+            badge.style.display = 'none';
+            cdRow.style.display = 'flex';
+            const pct = (this._paddle._swingCd / 180) * 100;
+            cdFill.style.width  = pct + '%';
+            cdNum.textContent   = (this._paddle._swingCd / 60).toFixed(1) + '초';
+        }
+    }
+
+    _rainbowBlockHit(ball, block) {
+        ball.rainbow = false;
+
+        const cx = block.x + block.w / 2;
+        const cy = block.y + block.h / 2;
+        const nearby = this._blocks
+            .filter(b => b.alive && b !== block)
+            .sort((a, b) => {
+                const da = Math.hypot(a.x + a.w / 2 - cx, a.y + a.h / 2 - cy);
+                const db = Math.hypot(b.x + b.w / 2 - cx, b.y + b.h / 2 - cy);
+                return da - db;
+            })
+            .slice(0, 2);
+
+        const toDestroy    = [block, ...nearby];
+        const prevDestroyed = this._blocksDestroyed;
+
+        for (const b of toDestroy) {
+            if (!b.alive) continue;
+            b.alive = false;
+
+            const pts = b.type === BT.hard ? 300 : b.type === BT.vortex ? 200 : 100;
+            this._score += pts;
+            this._scorePopups.push(new ScorePopup(b.x + b.w / 2, b.y + b.h / 2, pts));
+            this._particles.push(...spawnParticles(b.x + b.w / 2, b.y + b.h / 2, b.color));
+            if (b._itemType)
+                this._items.push(new Item(b.x + b.w / 2, b.y + b.h / 2, b._itemType));
+            this._blocksDestroyed++;
+        }
+
+        this._syncHUD(true);
+        this._saveHigh();
+        this.audio.playBlockBreak();
+        this._shakeFrames    = 12;
+        this._shakeIntensity = 10;
+
+        if (Math.floor(this._blocksDestroyed / 8) > Math.floor(prevDestroyed / 8)) {
+            const cap = this._baseSpeed * 1.35;
+            for (const b of this._balls) {
+                if (b.stuck) continue;
+                const spd = Math.hypot(b.dx, b.dy);
+                if (spd > 0 && spd < cap) {
+                    const ns = Math.min(spd + this._baseSpeed * 0.05, cap);
+                    b.dx = (b.dx / spd) * ns;
+                    b.dy = (b.dy / spd) * ns;
+                }
+            }
+        }
     }
 
     _togglePause() {

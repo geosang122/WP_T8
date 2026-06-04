@@ -218,7 +218,6 @@
                         <span class="vn-cursor"></span>
                     </div>
                     <div class="vn-controls">
-                        <div class="vn-portrait-area"></div>
                         <button class="vn-btn-next" id="btnVnNext">
                             다 음 <span class="next-tri">▶</span>
                         </button>
@@ -251,7 +250,6 @@
                     <span class="hud-label">STAGE</span>
                     <span class="hud-val hud-stage-val" id="hudStageNum">01</span>
                 </div>
-                <div class="hud-divider"></div>
                 <!-- 점수 패널 (강조 카드 디자인) -->
                 <div class="hud-center-item hud-score-panel">
                     <span class="hud-label hud-score-label">SCORE</span>
@@ -270,21 +268,82 @@
             </div>
         </div>
 
-        <!-- 캔버스 영역
-             [디자인 담당 TODO] 게임 캔버스 배경 이미지는 JS에서 처리:
-             nemo-game.js Game._draw() 내 배경 그라데이션 부분을
-             ctx.drawImage(bgImg, 0, 0, CW, CH) 로 교체하거나 중첩 가능 -->
-        <div class="canvas-area">
-            <canvas class="game-canvas" id="gameCanvas" width="1100" height="650"></canvas>
-            <!-- 게임 시작 전 플레이스홀더 -->
-            <div class="canvas-placeholder" id="canvasPlaceholder">
-                <div class="ph-inner">
-                    <div class="ph-fish">🐠</div>
-                    <p class="ph-title">Game Canvas</p>
-                    <p class="ph-hint">게임 로직이 여기에 렌더링됩니다</p>
+        <!-- 게임 바디 (캔버스 + 사이드바) -->
+        <div class="game-body">
+
+            <!-- 캔버스 영역 -->
+            <div class="canvas-area">
+                <canvas class="game-canvas" id="gameCanvas" width="1100" height="650"></canvas>
+                <!-- 게임 시작 전 플레이스홀더 -->
+                <div class="canvas-placeholder" id="canvasPlaceholder">
+                    <div class="ph-inner">
+                        <div class="ph-fish">🐠</div>
+                        <p class="ph-title">Game Canvas</p>
+                        <p class="ph-hint">게임 로직이 여기에 렌더링됩니다</p>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <!-- 우측 설명 패널 -->
+            <aside class="game-sidebar glass-panel" id="gameSidebar">
+
+                <!-- 클리어 목표 -->
+                <div class="sidebar-section">
+                    <div class="sidebar-sec-header">🎯 클리어 목표</div>
+                    <div class="sidebar-goal-text" id="sidebarGoalText">
+                        <p class="goal-main">-</p>
+                        <p class="goal-sub">-</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <!-- 파워스윙 쿨타임 -->
+                <div class="sidebar-section sidebar-swing-section">
+                    <div class="sidebar-sec-header">⚡ 파워스윙</div>
+                    <div class="swing-status-area">
+                        <div class="swing-badge" id="swingBadge">✓ READY</div>
+                        <div class="swing-cd-row" id="swingCdRow" style="display:none">
+                            <div class="swing-cd-track">
+                                <div class="swing-cd-fill" id="swingCdFill"></div>
+                            </div>
+                            <span class="swing-cd-num" id="swingCdNum">3.0초</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="sidebar-divider"></div>
+
+                <!-- 조작 키 가이드 -->
+                <div class="sidebar-section sidebar-keys-section">
+                    <div class="sidebar-sec-header">⌨ 조작 방법</div>
+                    <div class="key-guide">
+                        <div class="key-row">
+                            <div class="key-item">
+                                <button class="key-btn" id="keyLeft" tabindex="-1">←</button>
+                                <span class="key-desc">왼쪽 이동</span>
+                            </div>
+                            <div class="key-item">
+                                <button class="key-btn" id="keyRight" tabindex="-1">→</button>
+                                <span class="key-desc">오른쪽 이동</span>
+                            </div>
+                        </div>
+                        <div class="key-row key-row-space">
+                            <div class="key-item key-item-wide">
+                                <button class="key-btn key-space" id="keySpace" tabindex="-1">SPACE</button>
+                                <span class="key-desc">발사 / 파워스윙</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 로비 복귀 버튼 (맨 아래) -->
+                <div class="sidebar-lobby">
+                    <button class="btn-return-lobby" id="btnGameLobby">← 로비로 돌아가기</button>
+                </div>
+
+            </aside>
+
+        </div><!-- /.game-body -->
 
     </div><!-- /#screenGame -->
 

@@ -78,6 +78,12 @@ class AudioManager {
     playSharkAlert()  { this._tone(55, 'sawtooth', 0.6, 0.8);  this._tone(110, 'square', 0.3, 0.3); }
     playPaddleHit()   { this._tone(280, 'sine', 0.06, 0.4); }
 
+    playPowerSwing() {
+        this._tone(180, 'sawtooth', 0.08, 0.6);
+        setTimeout(() => this._tone(360, 'sine',    0.14, 0.5), 40);
+        setTimeout(() => this._tone(540, 'sine',    0.10, 0.35), 90);
+    }
+
     playItemGet() {
         [440, 550, 660].forEach((f, i) =>
             setTimeout(() => this._tone(f, 'sine', 0.18, 0.5), i * 60)
@@ -274,6 +280,7 @@ class Ball {
         this.stuckDx   = 0;
         this.slowTimer = 0;
         this.trail     = [];
+        this.rainbow   = false;
     }
 
     /** 공 발사 — ±45° 이내 아래쪽(양수 dy) 방향으로 */
@@ -337,30 +344,97 @@ class Ball {
     }
 
     draw(ctx) {
-        // 잔상
+        const rainbow = this.rainbow;
+        const hue     = rainbow ? (Date.now() * 0.4) % 360 : 0;
+
+        // 잔상 (물방울 흔적)
         this.trail.forEach((pt, i) => {
             const t = (i + 1) / this.trail.length;
-            ctx.beginPath();
-            ctx.arc(pt.x, pt.y, this.r * 0.75 * t, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255,107,53,${t * 0.45})`;
-            ctx.fill();
+            if (rainbow) {
+                const th = (hue + i * 45) % 360;
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, this.r * 0.75 * t, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${th}, 100%, 60%, ${t * 0.42})`;
+                ctx.fill();
+            } else {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, this.r * 0.65 * t, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(200,230,255,${t * 0.22})`;
+                ctx.fill();
+            }
         });
 
-        // 본체
+        // 본체 — 방울 스타일
         ctx.save();
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur  = 18;
+        ctx.shadowColor = rainbow ? `hsl(${hue}, 100%, 60%)` : this.color;
+        ctx.shadowBlur  = rainbow ? 32 : 22;
+
+        if (rainbow) {
+            // 무지개 공 외곽 링 3겹
+            for (let ri = 0; ri < 3; ri++) {
+                const rh = (hue + ri * 120) % 360;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r + 3 + ri * 4, 0, Math.PI * 2);
+                ctx.strokeStyle = `hsla(${rh}, 100%, 65%, ${0.55 - ri * 0.15})`;
+                ctx.lineWidth   = 1.8 - ri * 0.35;
+                ctx.stroke();
+            }
+        }
+
+        // 메인 바디
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
         const g = ctx.createRadialGradient(
-            this.x - this.r * 0.35, this.y - this.r * 0.35, 0,
-            this.x, this.y, this.r
+            this.x - this.r * 0.2, this.y - this.r * 0.25, this.r * 0.05,
+            this.x + this.r * 0.1, this.y + this.r * 0.1, this.r
         );
-        g.addColorStop(0,   '#fff');
-        g.addColorStop(0.4, this.color);
-        g.addColorStop(1,   '#803010');
+        if (rainbow) {
+            const h2 = (hue +  60) % 360;
+            const h3 = (hue + 160) % 360;
+            const h4 = (hue + 260) % 360;
+            g.addColorStop(0,    'rgba(255,255,255,0.95)');
+            g.addColorStop(0.25, `hsl(${hue}, 100%, 62%)`);
+            g.addColorStop(0.55, `hsl(${h2},  100%, 55%)`);
+            g.addColorStop(0.80, `hsl(${h3},  100%, 50%)`);
+            g.addColorStop(1,    `hsl(${h4},   80%, 30%)`);
+        } else {
+            g.addColorStop(0,    'rgba(255,255,255,0.92)');
+            g.addColorStop(0.28, this.color);
+            g.addColorStop(0.85, this.color);
+            g.addColorStop(1,    'rgba(0,0,0,0.32)');
+        }
         ctx.fillStyle = g;
         ctx.fill();
+
+        // 방울 테두리 (rim light)
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.strokeStyle = rainbow
+            ? `hsla(${(hue + 180) % 360}, 100%, 80%, 0.65)`
+            : 'rgba(255,255,255,0.42)';
+        ctx.lineWidth   = rainbow ? 1.5 : 1.1;
+        ctx.stroke();
+
+        // 메인 하이라이트 — 좌상단 타원 (빛 반사)
+        ctx.save();
+        ctx.translate(this.x - this.r * 0.28, this.y - this.r * 0.30);
+        ctx.scale(1, 0.58);
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r * 0.44, 0, Math.PI * 2);
+        const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, this.r * 0.44);
+        hg.addColorStop(0,    'rgba(255,255,255,0.96)');
+        hg.addColorStop(0.65, 'rgba(255,255,255,0.38)');
+        hg.addColorStop(1,    'rgba(255,255,255,0)');
+        ctx.fillStyle = hg;
+        ctx.fill();
+        ctx.restore();
+
+        // 보조 하이라이트 — 우하단 작은 점
+        ctx.beginPath();
+        ctx.arc(this.x + this.r * 0.38, this.y + this.r * 0.38, this.r * 0.16, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.52)';
+        ctx.fill();
+
         ctx.restore();
     }
 }
@@ -383,23 +457,38 @@ class Paddle {
         this.CW       = cw;
         this._targetX = this.x;
         this._expandT = 0;
-        this.direction = 'right'; // 현재 이동 방향
+        this.direction    = 'right'; // 마지막으로 누른 방향키 기준
         this._waterTrails = [];
         this._trailTimer  = 0;
+        this._swingTimer  = 0;   // 남은 스윙 틱 (>0 이면 스윙 중)
+        this._swingCd     = 0;   // 쿨다운 틱
     }
 
-    get cx() { return this.x + this.w / 2; }
+    get cx()         { return this.x + this.w / 2; }
+    get isSwinging() { return this._swingTimer > 0; }
+    get swingReady() { return this._swingTimer === 0 && this._swingCd === 0; }
+
+    setDirection(dir) { this.direction = dir; }
+
+    triggerSwing() {
+        if (this._swingTimer > 0 || this._swingCd > 0) return;
+        this._swingTimer = 36; // ~600ms (GIF 재생 시간)
+    }
 
     moveTo(mouseX) {
-        const newTarget = Math.max(0, Math.min(this.CW - this.w, mouseX - this.w / 2));
-        this.direction = newTarget >= this._targetX ? 'right' : 'left';
-        this._targetX  = newTarget;
+        this._targetX = Math.max(0, Math.min(this.CW - this.w, mouseX - this.w / 2));
     }
 
     update() {
         this.x += (this._targetX - this.x) * 0.18;
         if (this._expandT > 0) { this._expandT--; this.w = this._baseW * 1.55; }
         else                   { this.w = this._baseW; }
+
+        // 스윙 타이머 감소
+        if (this._swingTimer > 0) {
+            if (--this._swingTimer === 0) this._swingCd = 180; // 쿨다운 3초
+        }
+        if (this._swingCd > 0) this._swingCd--;
 
         // 헤엄칠 때 뒤쪽에서 물거품 생성
         const moveDelta = this._targetX - this.x;
@@ -432,7 +521,6 @@ class Paddle {
     }
 
     applyExpand(frames = 400) { this._expandT = frames; }
-    onBallHit()               {}
 
     draw(ctx) {
         const { x, y, w, h, direction } = this;
@@ -457,9 +545,16 @@ class Paddle {
             ctx.restore();
         });
 
-        const img = direction === 'left' ? nemoFatherLeftImg : nemoFatherRightImg;
         ctx.save();
-        ctx.drawImage(img, x, y, w, h);
+        if (this._swingTimer > 0) {
+            // 스윙 프레임은 560×560 정사각형 — 높이 기준(h×h)으로 유지하고 가운데 정렬
+            const TOTAL = 36;
+            const frameIdx = Math.min(6, Math.floor((TOTAL - this._swingTimer) * 7 / TOTAL));
+            const img = swingFrames[direction][frameIdx];
+            ctx.drawImage(img, x + (w - h) / 2, y, h, h);
+        } else {
+                ctx.drawImage(swingFrames[direction][0], x, y, w, h);
+        }
         ctx.restore();
     }
 }
@@ -621,12 +716,6 @@ class Block {
             }
             ctx.restore();
         }
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        ctx.lineWidth   = 0.8;
-        ctx.beginPath();
-        ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-        ctx.stroke();
 
         ctx.restore();
     }

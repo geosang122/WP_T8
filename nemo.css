@@ -27,11 +27,6 @@
     --neon-hot-dim: rgba(255,64,129,0.12);
     --neon-gold:   #ffd600;               /* 골드 (점수) */
 
-    /* ── 레거시 호환 (기존 코드 참조 유지) ── */
-    --accent:     #00e5ff;
-    --accent-dim: rgba(0,229,255,0.10);
-    --accent-sub: rgba(0,229,255,0.06);
-
     /* ── 위험·경고 ── */
     --danger:     #ff1744;
     --danger-dim: rgba(255,23,68,0.14);
@@ -58,9 +53,10 @@
     --font-title: 'Orbitron', sans-serif;
 
     /* ── 레이아웃 ── */
-    --game-w: 1100px;
-    --game-h: 720px;
-    --hud-h:  60px;
+    --game-w:    1340px;
+    --game-h:    720px;
+    --hud-h:     60px;
+    --sidebar-w: 240px;
 
     /* ── 모션 ── */
     --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
@@ -217,14 +213,14 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
         0 40px 80px rgba(0,0,0,0.90);
 }
 
-@media (max-width: 1200px) { :root { --scale: 0.95; } }
-@media (max-width: 1140px) { :root { --scale: 0.90; } }
-@media (max-width: 1060px) { :root { --scale: 0.84; } }
-@media (max-width: 990px)  { :root { --scale: 0.78; } }
-@media (max-width: 920px)  { :root { --scale: 0.72; } }
-@media (max-width: 860px)  { :root { --scale: 0.66; } }
-@media (max-width: 800px)  { :root { --scale: 0.60; } }
-@media (max-height: 730px) and (min-width: 1101px) { :root { --scale: 0.92; } }
+@media (max-width: 1460px) { :root { --scale: 0.95; } }
+@media (max-width: 1390px) { :root { --scale: 0.90; } }
+@media (max-width: 1290px) { :root { --scale: 0.84; } }
+@media (max-width: 1200px) { :root { --scale: 0.78; } }
+@media (max-width: 1120px) { :root { --scale: 0.72; } }
+@media (max-width: 1050px) { :root { --scale: 0.66; } }
+@media (max-width: 975px)  { :root { --scale: 0.60; } }
+@media (max-height: 730px) and (min-width: 1341px) { :root { --scale: 0.92; } }
 @media (max-height: 660px) { :root { --scale: 0.80; } }
 @media (max-height: 600px) { :root { --scale: 0.70; } }
 
@@ -267,8 +263,6 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
         text-shadow 0.2s;
     position: relative;
 }
-.btn::before { display: none; }
-
 /* 게임 시작 — 네온 강조 버튼 */
 .btn-primary {
     color: var(--neon);
@@ -732,6 +726,15 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 /* ── 12. GAME PLAY SCREEN ─────────────────────────────────── */
 #screenGame { flex-direction: column; }
 
+/* 캔버스 + 사이드바 가로 레이아웃 */
+.game-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    min-height: 0;
+}
+
 /* HUD 바 */
 .game-hud {
     height: var(--hud-h); flex-shrink: 0;
@@ -809,8 +812,6 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
     border-right: 1px solid var(--panel-border);
 }
 
-.hud-divider { display: none; }
-
 .hud-stage-val {
     font-size: 28px; letter-spacing: 0.04em;
     color: var(--neon);
@@ -869,20 +870,7 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 .canvas-area {
     flex: 1; position: relative; overflow: hidden;
 }
-/* CRT 스캔라인 효과 */
-.canvas-area::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent 0px,
-        transparent 3px,
-        rgba(0, 0, 0, 0.05) 3px,
-        rgba(0, 0, 0, 0.05) 4px
-    );
-    pointer-events: none;
-    z-index: 5;
-}
+
 .game-canvas {
     display: block; width: 100%; height: 100%;
     background: linear-gradient(180deg, #0a1e38 0%, #050e1c 100%);
@@ -1074,5 +1062,198 @@ button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
 ::-webkit-scrollbar-thumb { background: var(--panel-border); }
 ::-webkit-scrollbar-thumb:hover { background: var(--neon-border); }
 
-/* ── 17. UTILITIES ────────────────────────────────────────── */
+/* ── 17. GAME SIDEBAR ─────────────────────────────────────── */
+.game-sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--panel-border);
+    background: var(--depth-3);
+    overflow: hidden;
+}
+
+.sidebar-section {
+    padding: 18px 16px 14px;
+}
+
+.sidebar-sec-header {
+    font-family: var(--font-title);
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 0.26em;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+/* 목표 텍스트 */
+.sidebar-goal-text {
+    display: flex; flex-direction: column; gap: 8px;
+}
+.goal-main {
+    font-size: 13px; font-weight: 700;
+    color: var(--neon);
+    line-height: 1.55;
+    text-shadow: 0 0 10px var(--neon-glow);
+}
+.goal-sub {
+    font-size: 11px; font-weight: 300;
+    color: rgba(110,168,200,0.80);
+    line-height: 1.65;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: var(--panel-border);
+    margin: 0 16px;
+}
+
+/* 키 가이드 섹션 */
+.sidebar-keys-section { flex: 1; }
+
+.key-guide {
+    display: flex; flex-direction: column; gap: 14px;
+}
+
+.key-row {
+    display: flex; gap: 10px; align-items: flex-start;
+}
+
+.key-row-space {
+    justify-content: center;
+}
+
+.key-item {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+}
+
+.key-item-wide {
+    width: 100%;
+}
+
+/* 키 버튼 — 실제 키보드 키 모양 */
+.key-btn {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 44px; height: 40px;
+    padding: 0 10px;
+    background: var(--depth-4);
+    border: 1px solid rgba(100,160,200,0.40);
+    border-bottom: 3px solid rgba(100,160,200,0.40);
+    border-radius: 5px;
+    font-family: var(--font-title);
+    font-size: 13px; font-weight: 700;
+    color: var(--text-primary);
+    cursor: default;
+    user-select: none;
+    transition:
+        transform 0.06s,
+        border-bottom-width 0.06s,
+        background 0.06s,
+        color 0.06s,
+        box-shadow 0.06s;
+}
+
+.key-btn:focus { outline: none; }
+
+.key-space {
+    width: 100%;
+    font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+/* 키 누름 상태 */
+.key-btn.pressed {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+    background: var(--depth-4);
+    color: var(--neon);
+    box-shadow: 0 0 10px var(--neon-dim), inset 0 0 6px rgba(0,229,255,0.08);
+    border-color: var(--neon-border);
+}
+
+.key-desc {
+    font-size: 10px; font-weight: 300;
+    color: rgba(110,168,200,0.65);
+    text-align: center;
+    letter-spacing: 0.02em;
+}
+
+/* 로비 복귀 버튼 */
+.sidebar-lobby {
+    padding: 14px 16px;
+    border-top: 1px solid var(--panel-border);
+    margin-top: auto;
+}
+
+.btn-return-lobby {
+    width: 100%;
+    padding: 11px 12px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: var(--font-kr);
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.btn-return-lobby:hover {
+    border-color: var(--neon-border);
+    color: var(--neon);
+    background: var(--neon-dim);
+}
+
+/* ── 18. UTILITIES ────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── 19. SWING COOLDOWN (파워스윙 상태) ──────────────────── */
+.sidebar-swing-section { padding-bottom: 16px; }
+.swing-status-area { display: flex; flex-direction: column; gap: 8px; }
+
+.swing-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    font-family: var(--font-title);
+    font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border: 1px solid var(--neon-border);
+    background: var(--neon-dim);
+    color: var(--neon);
+    text-shadow: 0 0 8px var(--neon-glow);
+}
+.swing-badge.active {
+    border-color: rgba(255,214,0,0.30);
+    background: rgba(255,214,0,0.10);
+    color: var(--neon-gold);
+    text-shadow: 0 0 8px rgba(255,214,0,0.6);
+    animation: swingActivePulse 0.5s ease infinite alternate;
+}
+@keyframes swingActivePulse {
+    from { opacity: 0.75; }
+    to   { opacity: 1.0;  }
+}
+
+.swing-cd-row {
+    align-items: center; gap: 8px;
+}
+.swing-cd-track {
+    flex: 1; height: 5px;
+    background: var(--depth-3);
+    border: 1px solid var(--panel-border);
+    overflow: hidden;
+}
+.swing-cd-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef233c, #ff8c00);
+    width: 100%;
+    transition: width 0.1s linear;
+}
+.swing-cd-num {
+    font-family: var(--font-title);
+    font-size: 10px; font-weight: 700;
+    color: #ff8c00;
+    white-space: nowrap;
+    min-width: 28px;
+    text-align: right;
+}
