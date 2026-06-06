@@ -49,12 +49,13 @@
          SCREEN 1: LOBBY (메인 메뉴)
     ================================================ -->
     <div class="screen active" id="screenLobby">
-        <!-- 배경 장식 물고기 -->
-        <div class="deco-fish fish-a">🐠</div>
-        <div class="deco-fish fish-b">🐟</div>
-        <div class="deco-fish fish-c">🐡</div>
-        <div class="deco-fish fish-d">🦀</div>
-        <div class="deco-fish fish-e">🐙</div>
+
+        <!-- 우측 캐릭터 아트 -->
+        <div class="lobby-right-art" aria-hidden="true">
+            <img src="assets/images/nemo.png" alt="" class="lobby-art-img lobby-art-nemo">
+            <img src="assets/images/dori_left.png" alt="" class="lobby-art-img lobby-art-dori">
+            <img src="assets/images/shark1_right.png" alt="" class="lobby-art-img lobby-art-shark">
+        </div>
 
         <div class="lobby-content">
             <!-- 타이틀 영역 -->
@@ -66,6 +67,8 @@
                 </h1>
                 <p class="title-tagline">심해 속으로의 모험이 시작됩니다</p>
             </div>
+
+            <div class="lobby-divider"></div>
 
             <!-- 메인 네비게이션 버튼 -->
             <nav class="lobby-nav">
@@ -81,17 +84,6 @@
             </nav>
         </div>
 
-        <!-- 해저 바닥 장식 -->
-        <div class="seabed">
-            <span class="sb-item">🪸</span>
-            <span class="sb-item">🌿</span>
-            <span class="sb-item">🪸</span>
-            <span class="sb-item">⭐</span>
-            <span class="sb-item">🌿</span>
-            <span class="sb-item">🪸</span>
-            <span class="sb-item">🌿</span>
-            <span class="sb-item">🪸</span>
-        </div>
     </div>
 
     <!-- ================================================
@@ -110,7 +102,7 @@
             <div class="stage-card" data-stage="1">
                 <div class="stage-num-badge">STAGE 1</div>
                 <div class="stage-artwork art-1">
-                    <span class="stage-emoji">🐠</span>
+                    <span class="stage-emoji"><img src="assets/images/dori_left.png" alt="도리" style="width:64px;height:64px;object-fit:contain;"></span>
                     <div class="art-glow glow-blue"></div>
                 </div>
                 <div class="stage-info">
@@ -131,7 +123,7 @@
             <div class="stage-card" data-stage="2">
                 <div class="stage-num-badge badge-danger">STAGE 2</div>
                 <div class="stage-artwork art-2">
-                    <span class="stage-emoji">🦈</span>
+                    <span class="stage-emoji"><img src="assets/images/shark1_right.png" alt="상어" style="width:80px;height:33px;object-fit:contain;"></span>
                     <div class="art-glow glow-red"></div>
                 </div>
                 <div class="stage-info">
@@ -152,7 +144,7 @@
             <div class="stage-card stage-locked" data-stage="3">
                 <div class="stage-num-badge badge-final">STAGE 3</div>
                 <div class="stage-artwork art-3">
-                    <span class="stage-emoji">🐟</span>
+                    <span class="stage-emoji"><img src="assets/images/nemo.png" alt="니모" style="width:64px;height:64px;object-fit:contain;"></span>
                     <div class="art-glow glow-gold"></div>
                     <div class="lock-overlay">
                         <span class="lock-ico">🔒</span>
@@ -193,7 +185,7 @@
                  <img src="assets/char-dory.png" alt="도리" class="vn-sprite-img"> 로 교체
                  (nemo.css에 .vn-sprite-img { width: 130px; height: auto; } 추가) -->
             <div class="vn-char vn-char-left active" id="vnCharLeft">
-                <div class="vn-sprite">🐠</div>
+                <img src="assets/images/dori_left.png" alt="도리" style="width:130px;height:auto;display:block;margin:0 auto;">
                 <div class="vn-char-glow"></div>
             </div>
 
@@ -202,7 +194,7 @@
                  <div class="vn-sprite">🐟</div> 를
                  <img src="assets/char-marlin.png" alt="말린" class="vn-sprite-img"> 로 교체 -->
             <div class="vn-char vn-char-right" id="vnCharRight">
-                <div class="vn-sprite">🐟</div>
+                <img src="assets/images/nemo.png" alt="말린" style="width:130px;height:auto;display:block;margin:0 auto;">
                 <div class="vn-char-glow"></div>
             </div>
 
@@ -277,7 +269,7 @@
                 <!-- 게임 시작 전 플레이스홀더 -->
                 <div class="canvas-placeholder" id="canvasPlaceholder">
                     <div class="ph-inner">
-                        <div class="ph-fish">🐠</div>
+                        <div class="ph-fish"><img src="assets/images/dori_left.png" alt="도리" style="width:80px;height:auto;"></div>
                         <p class="ph-title">Game Canvas</p>
                         <p class="ph-hint">게임 로직이 여기에 렌더링됩니다</p>
                     </div>
@@ -289,11 +281,19 @@
 
                 <!-- 클리어 목표 -->
                 <div class="sidebar-section">
-                    <div class="sidebar-sec-header">🎯 클리어 목표</div>
+                    <div class="sidebar-sec-header">◎ 클리어 목표</div>
                     <div class="sidebar-goal-text" id="sidebarGoalText">
                         <p class="goal-main">-</p>
                         <p class="goal-sub">-</p>
                     </div>
+                </div>
+
+                <div class="sidebar-divider" id="sharkDivider" style="display:none"></div>
+
+                <!-- 상어 현황 (Stage 2/3, JS로 표시) -->
+                <div class="sidebar-section sidebar-shark-section" id="sharkStatusSection" style="display:none">
+                    <div class="sidebar-sec-header">◈ 상어 현황</div>
+                    <div id="sharkStatusList"></div>
                 </div>
 
                 <div class="sidebar-divider"></div>
@@ -311,6 +311,34 @@
                         </div>
                     </div>
                 </div>
+                <div class="sidebar-divider"></div>
+
+                <!-- 활성 아이템 상태 -->
+                <div class="sidebar-section sidebar-item-status-section">
+                    <div class="sidebar-sec-header">◆ 활성 아이템</div>
+                    <div id="itemStatusList">
+                        <span class="item-status-empty" id="itemStatusEmpty">-</span>
+                        <div class="item-cd-item" id="itemCdPaddle" style="display:none">
+                            <div class="item-cd-header">
+                                <span class="item-cd-label">◀▶ 패들 확장</span>
+                                <span class="item-cd-num" id="itemCdPaddleNum">8.0초</span>
+                            </div>
+                            <div class="item-cd-track">
+                                <div class="item-cd-fill" id="itemCdPaddleFill" style="background:#ff6b35;width:100%"></div>
+                            </div>
+                        </div>
+                        <div class="item-cd-item" id="itemCdSlow" style="display:none">
+                            <div class="item-cd-header">
+                                <span class="item-cd-label">❄ 게임 속도 감소</span>
+                                <span class="item-cd-num" id="itemCdSlowNum">4.0초</span>
+                            </div>
+                            <div class="item-cd-track">
+                                <div class="item-cd-fill" id="itemCdSlowFill" style="background:#4fc3f7;width:100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="sidebar-divider"></div>
 
                 <!-- 조작 키 가이드 -->
@@ -333,6 +361,22 @@
                                 <span class="key-desc">발사 / 파워스윙</span>
                             </div>
                         </div>
+
+                    </div>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <!-- 아이템 안내 -->
+                <div class="sidebar-section sidebar-item-guide-section">
+                    <div class="sidebar-sec-header">▣ 아이템 설명</div>
+                    <div class="item-guide">
+                        <div class="item-guide-row"><span class="item-badge" style="background:#f7d716;color:#000">+B</span><span>공 1개 추가</span></div>
+                        <div class="item-guide-row"><span class="item-badge" style="background:#ff6b35">◀▶</span><span>패들 확장 (~8초)</span></div>
+                        <div class="item-guide-row"><span class="item-badge" style="background:#ff6b9d">×2</span><span>공 2배로 분열</span></div>
+                        <div class="item-guide-row"><span class="item-badge" style="background:#4fc3f7;color:#000">❄</span><span>게임 속도 감소 (4초)</span></div>
+                        <div class="item-guide-row"><span class="item-badge" style="background:#ff69b4">+♥</span><span>목숨 1개 추가</span></div>
+                        <div class="item-guide-row"><span class="item-badge" style="background:#00e676;color:#000">+5s</span><span>시간 5초 추가</span></div>
                     </div>
                 </div>
 
@@ -431,42 +475,24 @@
                     </div>
                 </div>
 
-                <!-- Background Theme -->
+                <!-- Background Color -->
                 <div class="setting-row">
                     <div class="setting-meta">
                         <span class="set-ico">🌊</span>
-                        <div class="set-text">
-                            <span class="set-name">배경 테마</span>
-                            <span class="set-desc">게임 배경 테마 선택</span>
-                        </div>
                     </div>
                     <div class="toggle-group">
-                        <button class="toggle-btn on" data-group="theme" data-val="deep">심해</button>
-                        <button class="toggle-btn" data-group="theme" data-val="coral">산호초</button>
-                        <button class="toggle-btn" data-group="theme" data-val="night">야간</button>
+                        <button class="toggle-btn on" data-group="theme" data-val="deep" style="--tc:#00e5ff">심해</button>
+                        <button class="toggle-btn" data-group="theme" data-val="coral" style="--tc:#ff6b35">산호초</button>
+                        <button class="toggle-btn" data-group="theme" data-val="night" style="--tc:#c77dff">야간</button>
                     </div>
                 </div>
 
-                <!-- Game Speed -->
-                <div class="setting-row">
-                    <div class="setting-meta">
-                        <span class="set-ico">⚡</span>
-                        <div class="set-text">
-                            <span class="set-name">게임 속도</span>
-                            <span class="set-desc">공과 블록의 이동 속도</span>
-                        </div>
-                    </div>
-                    <div class="toggle-group">
-                        <button class="toggle-btn on" data-group="speed" data-val="1x">1x</button>
-                        <button class="toggle-btn" data-group="speed" data-val="1.2x">1.2x</button>
-                        <button class="toggle-btn" data-group="speed" data-val="1.4x">1.4x</button>
-                    </div>
-                </div>
 
             </div><!-- /.settings-list -->
         </div>
 
         <div class="modal-footer">
+            <button class="btn btn-ghost-sm" id="btnSettingsToLobby" style="margin-right:auto">← 로비로 나가기</button>
             <button class="btn btn-ghost-sm" id="btnResetSettings">초기화</button>
             <button class="btn btn-primary-sm" id="btnSaveSettings">저장하기</button>
         </div>
@@ -489,7 +515,11 @@
 
         <div class="modal-body credits-body">
             <div class="credits-hero">
-                <p class="credits-emoji">🐠 🦈 🐟</p>
+                <div class="credits-imgs">
+                    <img src="assets/images/dori_left.png" alt="도리" style="width:40px;height:40px;object-fit:contain;">
+                    <img src="assets/images/shark1_right.png" alt="상어" style="width:60px;height:25px;object-fit:contain;">
+                    <img src="assets/images/nemo.png" alt="니모" style="width:40px;height:40px;object-fit:contain;">
+                </div>
                 <p class="credits-game-title">니모를 찾아서</p>
                 <p class="credits-game-sub">Deep Ocean Breakout</p>
             </div>

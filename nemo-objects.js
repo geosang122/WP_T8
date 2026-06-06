@@ -173,12 +173,6 @@ class Particle {
             this.color  = color;
             this.rot    = Math.random() * Math.PI * 2;
             this.rotSpd = (Math.random() - 0.5) * 0.30;
-        } else {
-            this.r     = Math.random() * 3 + 1.5;
-            this.dx    = (Math.random() - 0.5) * 3.5;
-            this.dy    = Math.random() * 1.5 + 0.5;
-            this.decay = 0.018 + Math.random() * 0.015;
-            this.color = color;
         }
     }
 
@@ -193,8 +187,6 @@ class Particle {
         } else if (this.kind === 'rect') {
             this.dy  += 0.20;
             this.rot += this.rotSpd;
-        } else {
-            this.dy += 0.08;
         }
     }
 
@@ -223,11 +215,6 @@ class Particle {
             ctx.fillStyle = this.color;
             ctx.fillRect(-this.pw / 2, -this.ph / 2, this.pw, this.ph);
 
-        } else {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-            ctx.fillStyle = this.color;
-            ctx.fill();
         }
 
         ctx.restore();
@@ -448,15 +435,17 @@ class Ball {
    (이미지 로드는 nemo-game.js 상단에서 미리 처리)
 ============================================================ */
 class Paddle {
-    constructor(cw, ch) {
+    constructor(cw) {
         this._baseW   = 100;
+        this._baseH   = 64;
         this.w        = this._baseW;
-        this.h        = 64; // nemo_father 비율(1192×762 ≈ 1.565) 유지
+        this.h        = this._baseH; // nemo_father 비율(1192×762 ≈ 1.565) 유지
         this.x        = (cw - this.w) / 2;
         this.y        = 16; // 화면 상단 배치
         this.CW       = cw;
         this._targetX = this.x;
         this._expandT = 0;
+        this._lerpFactor  = 0.18;
         this.direction    = 'right'; // 마지막으로 누른 방향키 기준
         this._waterTrails = [];
         this._trailTimer  = 0;
@@ -480,9 +469,9 @@ class Paddle {
     }
 
     update() {
-        this.x += (this._targetX - this.x) * 0.18;
-        if (this._expandT > 0) { this._expandT--; this.w = this._baseW * 1.55; }
-        else                   { this.w = this._baseW; }
+        this.x += (this._targetX - this.x) * this._lerpFactor;
+        if (this._expandT > 0) { this._expandT--; this.w = this._baseW * 1.5; this.h = this._baseH; }
+        else                   { this.w = this._baseW; this.h = this._baseH; }
 
         // 스윙 타이머 감소
         if (this._swingTimer > 0) {
@@ -493,17 +482,17 @@ class Paddle {
         // 헤엄칠 때 뒤쪽에서 물거품 생성
         const moveDelta = this._targetX - this.x;
         if (Math.abs(moveDelta) > 0.5) {
-            if (++this._trailTimer % 4 === 0) {
+            if (++this._trailTimer % 3 === 0) {
                 const tx = moveDelta > 0 ? this.x + 8 : this.x + this.w - 8;
-                const count = Math.random() < 0.35 ? 2 : 1;
+                const count = Math.random() < 0.5 ? 2 : 1;
                 for (let i = 0; i < count; i++) {
                     this._waterTrails.push({
-                        x:      tx + (Math.random() - 0.5) * 18,
+                        x:      tx + (Math.random() - 0.5) * 22,
                         y:      this.y + this.h * (0.25 + Math.random() * 0.55),
-                        r:      1.5 + Math.random() * 3.5,
-                        alpha:  0.65 + Math.random() * 0.25,
-                        vy:     -(0.5 + Math.random() * 0.9),
-                        vx:     (Math.random() - 0.5) * 0.4,
+                        r:      2.5 + Math.random() * 5.0,
+                        alpha:  0.80 + Math.random() * 0.20,
+                        vy:     -(0.6 + Math.random() * 1.1),
+                        vx:     (Math.random() - 0.5) * 0.5,
                         wob:    Math.random() * Math.PI * 2,
                         wobSpd: 0.05 + Math.random() * 0.05,
                     });
@@ -515,7 +504,7 @@ class Paddle {
             t.wob += t.wobSpd;
             t.x   += t.vx + Math.sin(t.wob) * 0.25;
             t.y   += t.vy;
-            t.alpha -= 0.010 + (t.r < 2.5 ? 0.005 : 0);
+            t.alpha -= 0.008 + (t.r < 3 ? 0.004 : 0);
             if (t.alpha <= 0) this._waterTrails.splice(i, 1);
         }
     }
@@ -528,41 +517,46 @@ class Paddle {
         // 물거품 먼저 그리기 (물고기 아래에 렌더링)
         this._waterTrails.forEach(t => {
             ctx.save();
-            ctx.globalAlpha = Math.max(0, t.alpha);
+            ctx.globalAlpha  = Math.max(0, t.alpha);
+            ctx.shadowColor  = 'rgba(140,220,255,0.95)';
+            ctx.shadowBlur   = 6;
             // 반투명 버블 본체
             ctx.beginPath();
             ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(180,240,255,0.15)';
+            ctx.fillStyle = 'rgba(180,240,255,0.58)';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(160,228,255,0.72)';
-            ctx.lineWidth = 0.9;
+            ctx.strokeStyle = 'rgba(200,245,255,0.92)';
+            ctx.lineWidth   = 1.2;
             ctx.stroke();
             // 하이라이트 (왼쪽 위 작은 흰 점 — 버블 느낌)
+            ctx.shadowBlur = 0;
             ctx.beginPath();
-            ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.28, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.30, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.88)';
             ctx.fill();
             ctx.restore();
         });
 
         ctx.save();
         if (this._swingTimer > 0) {
-            // 스윙 프레임은 560×560 정사각형 — 높이 기준(h×h)으로 유지하고 가운데 정렬
+            // 스윙 프레임은 560×560 정사각형 — 항상 _baseH 기준 정사각형으로 가운데 정렬
             const TOTAL = 36;
             const frameIdx = Math.min(6, Math.floor((TOTAL - this._swingTimer) * 7 / TOTAL));
             const img = swingFrames[direction][frameIdx];
-            ctx.drawImage(img, x + (w - h) / 2, y, h, h);
+            ctx.drawImage(img, x + (w - this._baseH) / 2, y, this._baseH, this._baseH);
         } else {
-                ctx.drawImage(swingFrames[direction][0], x, y, w, h);
+            // 확장 시에도 이미지 비율 유지: 원래 크기로 패들 중앙 정렬
+            ctx.drawImage(swingFrames[direction][0], x + (w - this._baseW) / 2, y, this._baseW, this._baseH);
         }
         ctx.restore();
+
     }
 }
 
 /* ============================================================
    Block — normal / hard / vortex
 ============================================================ */
-const BT = { normal: 'normal', hard: 'hard', vortex: 'vortex' };
+const BT = { normal: 'normal', hard: 'hard', vortex: 'vortex', special: 'special', nemo: 'nemo' };
 
 const ROW_COLORS = [
     ['#1a6bb5','#2196f3'], ['#0d7a5f','#26c485'],
@@ -583,7 +577,8 @@ class Block {
         this._vang     = Math.random() * Math.PI * 2;
         this._cracks   = [];
         this._itemType = null;
-        this._flashT   = 0; // 하드 블록 피격 플래시 타이머
+        this._flashT   = 0;
+        this._hasDori  = false;
     }
 
     get color() { return this._cp[0]; }
@@ -608,7 +603,9 @@ class Block {
     }
 
     update() {
-        if (this.type === BT.vortex) this._vang += 0.04;
+        if (this.type === BT.vortex)  this._vang += 0.04;
+        if (this.type === BT.special) this._vang += 0.025;
+        if (this.type === BT.nemo)    this._vang += 0.035;
         if (this._flashT > 0) this._flashT--;
     }
 
@@ -620,12 +617,6 @@ class Block {
         ctx.save();
 
         if (this.type === BT.normal) {
-            ctx.shadowColor = this._cp[0];
-            ctx.shadowBlur  = 8;
-            ctx.save();
-            ctx.beginPath();
-            ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.clip();
             if (bImgs?.[this._imgIdx]?.complete) {
                 ctx.drawImage(bImgs[this._imgIdx], x + 1, y + 1, w - 2, h - 2);
             } else {
@@ -635,19 +626,15 @@ class Block {
                 ctx.fillStyle = g;
                 ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
             }
-            ctx.restore();
 
         } else if (this.type === BT.hard) {
             const flashAlpha = this._flashT > 0 ? (this._flashT / 8) * 0.65 : 0;
-            ctx.shadowColor  = this._flashT > 0 ? '#ffffff' : '#666';
-            ctx.shadowBlur   = this._flashT > 0 ? 20 : 6;
 
-            ctx.save();
-            ctx.beginPath();
-            ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.clip();
-            if (bImgs?.[2]?.complete) {
-                ctx.drawImage(bImgs[2], x + 1, y + 1, w - 2, h - 2);
+            const sImgs    = typeof stoneImgs !== 'undefined' ? stoneImgs : null;
+            const stoneIdx = 3 - this.hp; // hp=3→stone1, hp=2→stone2, hp=1→stone3
+
+            if (sImgs?.[stoneIdx]?.complete && sImgs[stoneIdx].naturalWidth > 0) {
+                ctx.drawImage(sImgs[stoneIdx], x + 1, y + 1, w - 2, h - 2);
             } else {
                 const g = ctx.createLinearGradient(x, y, x + w, y + h);
                 g.addColorStop(0,   '#6b7280');
@@ -655,16 +642,13 @@ class Block {
                 g.addColorStop(1,   '#1f2937');
                 ctx.fillStyle = g;
                 ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+                ctx.fillStyle = 'rgba(20,20,30,0.52)';
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
             }
-            ctx.fillStyle = 'rgba(20,20,30,0.52)';
-            ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-            ctx.restore();
 
             if (flashAlpha > 0) {
                 ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
-                ctx.beginPath();
-                ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-                ctx.fill();
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
             }
 
             ctx.strokeStyle = 'rgba(255,255,255,0.65)';
@@ -676,21 +660,7 @@ class Block {
                 ctx.stroke();
             });
 
-            for (let i = 0; i < this.maxHp; i++) {
-                ctx.beginPath();
-                ctx.arc(x + 6 + i * 8, y + h / 2, 2.5, 0, Math.PI * 2);
-                ctx.fillStyle = i < this.hp ? '#fff' : 'rgba(255,255,255,0.2)';
-                ctx.fill();
-            }
-
-        } else { // vortex
-            ctx.shadowColor = '#00b4d8';
-            ctx.shadowBlur  = 12;
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
-            ctx.clip();
+        } else if (this.type === BT.vortex) {
             if (bImgs?.[1]?.complete) {
                 ctx.drawImage(bImgs[1], x + 1, y + 1, w - 2, h - 2);
             } else {
@@ -702,9 +672,10 @@ class Block {
             }
             ctx.fillStyle = 'rgba(0,50,120,0.45)';
             ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
-            ctx.restore();
 
             ctx.save();
+            ctx.shadowColor = '#00b4d8';
+            ctx.shadowBlur  = 10;
             ctx.translate(x + w / 2, y + h / 2);
             ctx.rotate(this._vang);
             ctx.strokeStyle = 'rgba(0,220,255,0.75)';
@@ -713,6 +684,55 @@ class Block {
                 ctx.beginPath();
                 ctx.arc(0, 0, 6, (a / 3) * Math.PI * 2, (a / 3 + 0.55) * Math.PI * 2);
                 ctx.stroke();
+            }
+            ctx.restore();
+
+        } else if (this.type === BT.special) {
+            const sbImg = typeof specialBlockImg !== 'undefined' ? specialBlockImg : null;
+            const pulse = Math.sin(this._vang * 3) * 0.5 + 0.5;
+
+            ctx.shadowColor = `rgba(120,200,255,${0.5 + pulse * 0.4})`;
+            ctx.shadowBlur  = 8 + pulse * 8;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(x + 1, y + 1, w - 2, h - 2, 3);
+            ctx.clip();
+            if (sbImg?.complete && sbImg.naturalWidth > 0) {
+                ctx.drawImage(sbImg, x + 1, y + 1, w - 2, h - 2);
+            } else {
+                ctx.fillStyle = '#002244';
+                ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+            }
+            ctx.restore();
+
+        } else if (this.type === BT.nemo) {
+            const npImg  = typeof nemoPrisonImg !== 'undefined' ? nemoPrisonImg : null;
+            const pulse  = Math.sin(this._vang * 2.5) * 0.5 + 0.5;
+
+            ctx.shadowColor = `rgba(255,140,0,${0.55 + pulse * 0.45})`;
+            ctx.shadowBlur  = 12 + pulse * 16;
+
+            // 테두리 (강렬한 오렌지 글로우)
+            ctx.strokeStyle = `rgba(255,${Math.round(100 + pulse * 100)},0,0.9)`;
+            ctx.lineWidth   = 2;
+            ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+            ctx.save();
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x + 2, y + 2, w - 4, h - 4, 3);
+            else ctx.rect(x + 2, y + 2, w - 4, h - 4);
+            ctx.clip();
+            if (npImg?.complete && npImg.naturalWidth > 0) {
+                ctx.drawImage(npImg, x + 2, y + 2, w - 4, h - 4);
+            } else {
+                ctx.fillStyle = '#7a2800';
+                ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.font         = `bold ${Math.min(h - 6, 13)}px sans-serif`;
+                ctx.textAlign    = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🐠', x + w / 2, y + h / 2);
             }
             ctx.restore();
         }
@@ -735,11 +755,11 @@ class Block {
 ============================================================ */
 const ITEM_INFO = {
     extraBall:  { label: '+B',  color: '#f7d716' },
-    paddleWide: { label: 'PW',  color: '#ff6b35' },
-    multiball:  { label: '×3',  color: '#ff6b9d' },
-    speedUp:    { label: 'SP↑', color: '#ff4500' },
-    slowBall:   { label: 'SL',  color: '#4fc3f7' },
+    paddleWide: { label: '◀▶', color: '#ff6b35' },
+    multiball:  { label: '×2',  color: '#ff6b9d' },
+    slowBall:   { label: '❄',   color: '#4fc3f7' },
     extraLife:  { label: '+♥',  color: '#ff69b4' },
+    timeBonus:  { label: '+5s', color: '#00e676' },
 };
 
 /* ============================================================
@@ -759,7 +779,7 @@ class Item {
         this._wob  = 0;
     }
 
-    update(cw, ch) {
+    update(cw) {
         this._wob += 0.08;
         this.dx   += Math.sin(this._wob) * 0.04;
         this.dx    = Math.max(-1.5, Math.min(1.5, this.dx));
@@ -785,23 +805,61 @@ class Item {
         ctx.shadowColor = info.color;
         ctx.shadowBlur  = 16;
 
-        const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
-        g.addColorStop(0,   '#fff');
-        g.addColorStop(0.5, info.color);
-        g.addColorStop(1,   info.color + '88');
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth   = 1.5;
-        ctx.stroke();
+        if (this.type === 'slowBall') {
+            // 눈꽃 배경 원
+            const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
+            g.addColorStop(0,   '#e8f8ff');
+            g.addColorStop(0.5, '#4fc3f7');
+            g.addColorStop(1,   '#0288d188');
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.lineWidth   = 1.5;
+            ctx.stroke();
 
-        ctx.fillStyle    = '#fff';
-        ctx.font         = 'bold 9px Orbitron, sans-serif';
-        ctx.textAlign    = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(info.label, this.x, this.y);
+            // 눈꽃 6각 모양
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.lineWidth   = 1.1;
+            ctx.lineCap     = 'round';
+            const arm = this.r * 0.74;
+            const bp  = arm * 0.55;
+            const bl  = arm * 0.36;
+            for (let i = 0; i < 6; i++) {
+                ctx.save();
+                ctx.rotate((i * Math.PI) / 3);
+                ctx.beginPath();
+                ctx.moveTo(0, 0); ctx.lineTo(0, -arm);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, -bp); ctx.lineTo(-bl, -bp - bl);
+                ctx.moveTo(0, -bp); ctx.lineTo( bl, -bp - bl);
+                ctx.stroke();
+                ctx.restore();
+            }
+            ctx.restore();
+        } else {
+            const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
+            g.addColorStop(0,   '#fff');
+            g.addColorStop(0.5, info.color);
+            g.addColorStop(1,   info.color + '88');
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth   = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle    = '#fff';
+            ctx.font         = 'bold 9px Orbitron, sans-serif';
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(info.label, this.x, this.y);
+        }
         ctx.restore();
     }
 }

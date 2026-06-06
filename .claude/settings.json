@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import http.server; print\\('python ok'\\)\")",
+      "Bash(python -m http.server 7842)",
+      "Bash(curl -s http://localhost:7842/nemo.html)",
+      "Bash(curl -s http://localhost:7842/nemo-game.js)",
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('nemo-objects.js','utf8'\\)\")",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

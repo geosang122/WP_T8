@@ -42,6 +42,7 @@ const DIALOGUE = {
         { speaker: '브루스', side: 'right', text: '물고기는... 친구다. 물고기는 친구야. (눈빛이 흔들린다)' },
         { speaker: '말 린',  side: 'left',  text: '저 상어! 도리, 조심해. 공이 저한테 닿으면 패들 방향이 뒤집혀버려!' },
         { speaker: '도 리',  side: 'right', text: '상어가 친구랬잖아요. 친구... 맞죠?' },
+        { speaker: '말 린',  side: 'left',  text: '참! SPACE를 눌러 파워스윙을 쓰면 무지개 공이 상어를 격침시킬 수 있어!' },
         { speaker: '말 린',  side: 'left',  text: '일단 도망가! 브루스, 미안하지만 오늘은 식사 취소야!' },
     ],
 
@@ -55,9 +56,10 @@ const DIALOGUE = {
     // ── STAGE 3 인트로: 니모 구하기 ─────────────────────────
     3: [
         { speaker: '말 린',  side: 'left',  text: '드디어 여기까지 왔어, 니모. 아빠가 왔다!' },
-        { speaker: '니 모',  side: 'right', text: '아빠!! 빨리 이 벽을 부숴주세요. 소용돌이 블록은 속도가 느려지니까 조심해요!' },
-        { speaker: '도 리',  side: 'left',  text: '시야가 너무 어두워요. 뭔가 찜찜하지만... 할 수 있어요!' },
-        { speaker: '말 린',  side: 'right', text: '마지막이야. 포기하지 마. 니모, 기다려!' },
+        { speaker: '니 모',  side: 'right', text: '아빠!! 모래바람에 갇혀서 잘 안 보여요! 강공격으로 찾아주세요!' },
+        { speaker: '말 린',  side: 'left',  text: '상어 3마리도 파워스윙(SPACE)으로 격침시켜야 해. 일반 공으론 안 돼!' },
+        { speaker: '도 리',  side: 'right', text: '제가 니모가 어디 있는지 알아요! 게임이 시작되면 알려드릴게요!' },
+        { speaker: '말 린',  side: 'left',  text: '상어 3마리 격침 + 진짜 니모 블록 강공격! 가자!' },
     ],
 
     // ── STAGE 3 아웃트로 / 엔딩 ─────────────────────────────
